@@ -113,6 +113,7 @@ Photo and mic are **UI mocks** (no `image_picker` / recorder plugins yet).
 - Added language selection placeholder: Prepared for Bhashini integration in the future.
 - Added notification preferences control: Officers can now toggle notification settings directly from the settings sheet.
 - Added officer profile display: Shows officer ID (mock: "SOL-2024-001") with expandable profile details (TODO).
+- Fixed settings sheet bottom overflow by making the modal scrollable, draggable, and safe-area aware.
 
 ## NEXT step
 
