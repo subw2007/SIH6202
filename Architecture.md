@@ -28,7 +28,7 @@ main()
        └─ CivicPulseApp (MaterialApp)
             └─ _RootSwitcher
                  ├─ isCitizenMode == true  → CitizenView
-                 └─ isCitizenMode == false → _OfficialPlaceholder
+                 └─ isCitizenMode == false → SolverView
 
 CitizenView
   watch UserModeProvider.username  → header
@@ -111,10 +111,60 @@ Submit
 
 Submitted reports are **not** appended to the feed in this sprint (no API).
 
+## Solver Mode extension
+
+`UserModeProvider.isCitizenMode == true` renders the existing `CitizenView`;
+`false` renders `SolverView`. Both are children of the same `MultiProvider`
+root, so the Citizen settings sheet and Solver settings action mutate the same
+mode state. `SolverProvider` is app-scoped beside the mode provider and owns
+the official feed independently of report-composer drafts.
+
+The Solver component tree is:
+
+```
+SolverView
+├── category filter chips
+├── feed metrics header
+└── SolverTaskCard*
+    ├── PriorityBadge
+    ├── thumbnail
+    ├── category/title metadata
+    ├── distance/upvotes/team metadata
+    └── status/view/join/work actions
+```
+
+`SolverProvider` owns the selected `SolverCategory`, visible category-filtered
+tasks, and high-priority count. Each `SolverTaskCard` receives callbacks for
+details, joining a team, and status updates; it does not own feed state.
+
+Official task schema:
+
+```json
+{
+  "id": "rpt_001",
+  "title": "Deep pothole causing accidents",
+  "timestamp": "2h ago",
+  "location": "Sector 4, Main St",
+  "distance": "1.2 km",
+  "upvotes": 148,
+  "team_count": 3,
+  "priority": "high",
+  "status": "pending",
+  "category": "infrastructure",
+  "description": "Large road damage is disrupting traffic."
+}
+```
+
+Official actions map to `SolverProvider.updateStatus(taskId, status)` for
+`Work on This`; details and team joining are callback seams for backend
+integration. Category and metric values are derived from the same task
+collection rather than duplicated state.
+
 ## Integration seams (not implemented)
 
 - `POST /reports` multipart: image bytes, audio file, title, lat/lng
 - `image_picker` + camera permission; `record` / Bhashini STT
 - YOLO on the captured still before upload
-- Solver Mode view & priority feed (next sprint)
+- Persist Solver category, details, team membership, and work status through
+  the FastAPI backend
 - Auth token; Official inbox under `lib/views/official/`

@@ -1,226 +1,157 @@
 import 'package:flutter/foundation.dart';
 
-enum SolverPriority { low, medium, high, critical }
+enum TaskPriority { critical, high, medium, low }
 
-enum SolverTaskStatus { pending, inProgress, resolved }
+enum TaskStatus { pending, inProgress, resolved }
 
-/// Inbox chips shown in Solver Workspace. Urgent is HIGH/CRITICAL + not resolved.
-enum SolverFeedFilter { all, urgent, pending, inProgress, resolved }
+enum SolverCategory { all, infrastructure, water, electricity, sanitation }
 
 class SolverTask {
   const SolverTask({
     required this.id,
     required this.title,
+    required this.timestamp,
     required this.location,
-    required this.timeAgo,
-    required this.upvoteCount,
-    required this.aiSummary,
+    required this.distance,
+    required this.upvotes,
+    required this.teamCount,
     required this.priority,
     required this.status,
-    this.assignedTeam,
+    required this.category,
+    required this.description,
   });
 
   final String id;
   final String title;
+  final String timestamp;
   final String location;
-  final String timeAgo;
-  final int upvoteCount;
-  final String aiSummary;
-  final SolverPriority priority;
-  final SolverTaskStatus status;
-  final String? assignedTeam;
+  final String distance;
+  final int upvotes;
+  final int teamCount;
+  final TaskPriority priority;
+  final TaskStatus status;
+  final SolverCategory category;
+  final String description;
 
-  bool get isUrgent =>
-      (priority == SolverPriority.high || priority == SolverPriority.critical) &&
-      status != SolverTaskStatus.resolved;
-
-  SolverTask copyWith({
-    SolverTaskStatus? status,
-    String? assignedTeam,
-    bool clearTeam = false,
-  }) {
-    return SolverTask(
-      id: id,
-      title: title,
-      location: location,
-      timeAgo: timeAgo,
-      upvoteCount: upvoteCount,
-      aiSummary: aiSummary,
-      priority: priority,
-      status: status ?? this.status,
-      assignedTeam: clearTeam ? null : (assignedTeam ?? this.assignedTeam),
-    );
-  }
-
-  Map<String, dynamic> toMockJson() => {
-        'id': id,
-        'title': title,
-        'location': location,
-        'time_ago': timeAgo,
-        'upvote_count': upvoteCount,
-        'ai_summary': aiSummary,
-        'priority': priority.name,
-        'status': status.name,
-        'assigned_team': assignedTeam,
-      };
+  SolverTask copyWith({TaskStatus? status}) => SolverTask(
+    id: id,
+    title: title,
+    timestamp: timestamp,
+    location: location,
+    distance: distance,
+    upvotes: upvotes,
+    teamCount: teamCount,
+    priority: priority,
+    status: status ?? this.status,
+    category: category,
+    description: description,
+  );
 }
 
-/// Municipal inbox: filter + resolution actions over a mocked task list.
 class SolverProvider extends ChangeNotifier {
-  SolverFeedFilter _filter = SolverFeedFilter.all;
-  String? _lastActionMessage;
+  SolverProvider()
+    : _tasks = [
+        const SolverTask(
+          id: 'pothole-sector-4',
+          title: 'Deep pothole causing accidents near school',
+          timestamp: '2h ago',
+          location: 'Sector 4, Main St',
+          distance: '1.2 km',
+          upvotes: 148,
+          teamCount: 3,
+          priority: TaskPriority.high,
+          status: TaskStatus.pending,
+          category: SolverCategory.infrastructure,
+          description:
+              'Large road damage is disrupting traffic and creating a safety hazard for school commuters.',
+        ),
+        const SolverTask(
+          id: 'streetlight-ward-8',
+          title: 'Streetlight outage near school',
+          timestamp: '4h ago',
+          location: 'Ward 8, Lake Road',
+          distance: '2.4 km',
+          upvotes: 92,
+          teamCount: 2,
+          priority: TaskPriority.high,
+          status: TaskStatus.pending,
+          category: SolverCategory.electricity,
+          description:
+              'Three lights are out along the pedestrian route used by students after sunset.',
+        ),
+        const SolverTask(
+          id: 'drainage-market',
+          title: 'Blocked drainage overflow',
+          timestamp: 'Yesterday',
+          location: 'Central Market, Block B',
+          distance: '3.1 km',
+          upvotes: 61,
+          teamCount: 4,
+          priority: TaskPriority.medium,
+          status: TaskStatus.inProgress,
+          category: SolverCategory.water,
+          description:
+              'Standing water is collecting around the market entrance after recent rainfall.',
+        ),
+        const SolverTask(
+          id: 'garbage-park',
+          title: 'Missed waste collection',
+          timestamp: 'Yesterday',
+          location: 'Green Park, Lane 2',
+          distance: '4.8 km',
+          upvotes: 38,
+          teamCount: 1,
+          priority: TaskPriority.low,
+          status: TaskStatus.resolved,
+          category: SolverCategory.sanitation,
+          description:
+              'Household waste was left uncollected at the scheduled pickup point.',
+        ),
+        const SolverTask(
+          id: 'water-leak',
+          title: 'Water leak on public walkway',
+          timestamp: '2 days ago',
+          location: 'Civic Centre, East Gate',
+          distance: '5.2 km',
+          upvotes: 44,
+          teamCount: 2,
+          priority: TaskPriority.medium,
+          status: TaskStatus.resolved,
+          category: SolverCategory.water,
+          description:
+              'A damaged pipe is causing water to pool on the public walkway.',
+        ),
+      ];
 
-  List<SolverTask> _tasks = List<SolverTask>.unmodifiable(_seedTasks);
+  final List<SolverTask> _tasks;
+  SolverCategory _category = SolverCategory.all;
 
-  SolverFeedFilter get filter => _filter;
-  String? get lastActionMessage => _lastActionMessage;
-  List<SolverTask> get tasks => _tasks;
+  List<SolverTask> get tasks => List.unmodifiable(_tasks);
+  SolverCategory get category => _category;
+  int get highPriorityCount => _tasks
+      .where(
+        (task) =>
+            task.priority == TaskPriority.high ||
+            task.priority == TaskPriority.critical,
+      )
+      .length;
 
-  List<SolverTask> get visibleTasks {
-    return _tasks.where((task) {
-      switch (_filter) {
-        case SolverFeedFilter.all:
-          return true;
-        case SolverFeedFilter.urgent:
-          return task.isUrgent;
-        case SolverFeedFilter.pending:
-          return task.status == SolverTaskStatus.pending;
-        case SolverFeedFilter.inProgress:
-          return task.status == SolverTaskStatus.inProgress;
-        case SolverFeedFilter.resolved:
-          return task.status == SolverTaskStatus.resolved;
-      }
-    }).toList(growable: false);
-  }
+  List<SolverTask> get visibleTasks => _tasks
+      .where(
+        (task) => _category == SolverCategory.all || task.category == _category,
+      )
+      .toList();
 
-  int get allCount => _tasks.length;
-  int get urgentCount => _tasks.where((t) => t.isUrgent).length;
-  int get pendingCount =>
-      _tasks.where((t) => t.status == SolverTaskStatus.pending).length;
-  int get inProgressCount =>
-      _tasks.where((t) => t.status == SolverTaskStatus.inProgress).length;
-  int get resolvedCount =>
-      _tasks.where((t) => t.status == SolverTaskStatus.resolved).length;
-
-  int countFor(SolverFeedFilter filter) {
-    switch (filter) {
-      case SolverFeedFilter.all:
-        return allCount;
-      case SolverFeedFilter.urgent:
-        return urgentCount;
-      case SolverFeedFilter.pending:
-        return pendingCount;
-      case SolverFeedFilter.inProgress:
-        return inProgressCount;
-      case SolverFeedFilter.resolved:
-        return resolvedCount;
-    }
-  }
-
-  void setFilter(SolverFeedFilter value) {
-    if (_filter == value) return;
-    _filter = value;
+  void setCategory(SolverCategory category) {
+    if (_category == category) return;
+    _category = category;
     notifyListeners();
   }
 
-  void markInProgress(String id) {
-    _patch(
-      id,
-      (task) => task.copyWith(status: SolverTaskStatus.inProgress),
-      message: 'Task marked in progress',
-    );
-  }
-
-  void assignTeam(String id, {String team = 'Ward Rapid Response'}) {
-    _patch(
-      id,
-      (task) => task.copyWith(
-        status: SolverTaskStatus.inProgress,
-        assignedTeam: team,
-      ),
-      message: '$team assigned',
-    );
-  }
-
-  void resolveIssue(String id) {
-    _patch(
-      id,
-      (task) => task.copyWith(status: SolverTaskStatus.resolved),
-      message: 'Issue marked resolved',
-    );
-  }
-
-  void clearActionMessage() {
-    if (_lastActionMessage == null) return;
-    _lastActionMessage = null;
-    notifyListeners();
-  }
-
-  void _patch(
-    String id,
-    SolverTask Function(SolverTask) transform, {
-    required String message,
-  }) {
-    final index = _tasks.indexWhere((task) => task.id == id);
-    if (index < 0) return;
-    final next = List<SolverTask>.from(_tasks);
-    next[index] = transform(next[index]);
-    _tasks = List<SolverTask>.unmodifiable(next);
-    _lastActionMessage = message;
+  void updateStatus(String taskId, TaskStatus status) {
+    final index = _tasks.indexWhere((task) => task.id == taskId);
+    if (index == -1 || _tasks[index].status == status) return;
+    _tasks[index] = _tasks[index].copyWith(status: status);
     notifyListeners();
   }
 }
-
-const _seedTasks = <SolverTask>[
-  SolverTask(
-    id: 'rpt_001',
-    title: 'Deep pothole causing accidents',
-    location: 'Sector 4, Main St',
-    timeAgo: '2h ago',
-    upvoteCount: 14,
-    aiSummary: 'High traffic impact • Multiple upvotes (14)',
-    priority: SolverPriority.high,
-    status: SolverTaskStatus.pending,
-  ),
-  SolverTask(
-    id: 'rpt_005',
-    title: 'Open manhole without barricade',
-    location: 'Bus stand, Ward 3',
-    timeAgo: '2d ago',
-    upvoteCount: 33,
-    aiSummary: 'Public safety risk • Multiple upvotes (33)',
-    priority: SolverPriority.critical,
-    status: SolverTaskStatus.pending,
-  ),
-  SolverTask(
-    id: 'rpt_003',
-    title: 'Overflowing drain after rainfall',
-    location: 'Ward 12, Canal Road',
-    timeAgo: '1d ago',
-    upvoteCount: 21,
-    aiSummary: 'Flooding likely after rain • Multiple upvotes (21)',
-    priority: SolverPriority.medium,
-    status: SolverTaskStatus.inProgress,
-    assignedTeam: 'Drainage Unit B',
-  ),
-  SolverTask(
-    id: 'rpt_002',
-    title: 'Broken streetlight on main road',
-    location: 'MG Road',
-    timeAgo: '5h ago',
-    upvoteCount: 9,
-    aiSummary: 'Night visibility reduced • Multiple upvotes (9)',
-    priority: SolverPriority.low,
-    status: SolverTaskStatus.resolved,
-  ),
-  SolverTask(
-    id: 'rpt_004',
-    title: 'Garbage pile near community park',
-    location: 'Sector 4, Park Gate',
-    timeAgo: '1d ago',
-    upvoteCount: 6,
-    aiSummary: 'Sanitation backlog • Multiple upvotes (6)',
-    priority: SolverPriority.medium,
-    status: SolverTaskStatus.resolved,
-  ),
-];

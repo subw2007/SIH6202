@@ -44,6 +44,60 @@ Also updated: `app/mobile/test/widget_test.dart` (submit-and-return flow).
 
 Photo and mic are **UI mocks** (no `image_picker` / recorder plugins yet).
 
+## Solver Mode refactor (2026-09-04)
+
+### Modified files
+
+| File | Modification |
+| --- | --- |
+| `lib/main.dart` | Preserved the original Citizen app shell and connected `SolverView` through the existing `UserModeProvider`/`MultiProvider` root switcher. |
+| `lib/providers/user_mode_provider.dart` | Kept the original `isCitizenMode`, username, and mode mutation API so Citizen settings and Solver switching share one state source. |
+| `lib/providers/solver_provider.dart` | Added the mutable task collection, active `SolverFilter`, visible-task derivation, status counts, and status mutation state used by the official feed. |
+| `lib/views/solver_view.dart` | Refined page background, surface, ink, primary blue, 20px margins, horizontal filter pills, summary cards, 16px feed gaps, and official navigation controls. |
+| `lib/views/widgets/solver_task_card.dart` | Refined white 20px cards, 4px priority left border, exact design palette, AI insight wash, and action hierarchy. |
+| `lib/views/widgets/priority_badge.dart` | Uses exact Critical/High `#E53935`, Medium `#FB8C00`, and Low `#4CAF50` colors with tinted fills and outlines. |
+| `lib/test/widget_test.dart` | Covers the original Citizen-to-Official mode switch and Solver feed contract. |
+| `Design.md` | Restored the Citizen design contract and documented the Solver palette/layout extension. |
+| `Architecture.md` | Restored the Citizen architecture contract and documented Solver state/data flow. |
+
+### New SolverProvider state
+
+- `_tasks`: mutable in-memory `List<SolverTask>` containing the current official inbox.
+- `_filter`: active `SolverFilter`, defaulting to `all`.
+- `SolverTask.status`: per-task `pending`, `inProgress`, or `resolved` status.
+- `SolverTask.priority`: per-task `critical`, `high`, `medium`, or `low` severity.
+- `visibleTasks`: derived list filtered by the active pill.
+- `countFor()`: derived count for All, Pending, Urgent, In Progress, and Resolved.
+- `countStatus()`: derived summary analytics count.
+- `updateStatus()`: mutation used by Assign/Mark In Progress and confirmed Resolve actions.
+
+## Solver Mode wireframe refactor (2026-09-04)
+
+### Modified files
+
+| File | Modification |
+| --- | --- |
+| `lib/providers/solver_provider.dart` | Replaced status-filter state with `SolverCategory`, category filtering, high-priority count, and expanded task metadata. |
+| `lib/views/solver_view.dart` | Rebuilt the header, avatar, category chip row, metrics row, and feed; removed the distance slider/old analytics controls. |
+| `lib/views/widgets/solver_task_card.dart` | Rebuilt cards with thumbnail, priority/category metadata, two-line title/description, distance/upvotes/team metadata, status pill, view, Join Team, and Work on This actions. |
+| `lib/views/widgets/priority_badge.dart` | Changed to the solid red/orange/green dot priority pill used beside category metadata. |
+| `Design.md` | Added the exact Solver wireframe layout, dimensions, and token usage. |
+| `Architecture.md` | Updated the dual-view tree, Solver component tree, and official task schema. |
+| `app/mobile/test/widget_test.dart` | Updated the integration assertions for the new Solver header, metrics, category filters, and card title. |
+
+### New and changed Solver state
+
+- `SolverCategory _category`: selected category chip, default `all`.
+- `SolverTask.distance`: display distance metadata.
+- `SolverTask.upvotes`: citizen support count.
+- `SolverTask.teamCount`: assigned team count.
+- `SolverTask.category`: task category used by filtering and icon labels.
+- `SolverTask.description`: two-line card description.
+- `SolverProvider.highPriorityCount`: derived high/critical count for the metrics pill.
+- `SolverProvider.visibleTasks`: derived category-filtered feed.
+- `SolverProvider.setCategory()`: category chip mutation.
+- `SolverProvider.updateStatus()`: Work on This status mutation.
+
 ## NEXT step
 
 **Build Solver Mode View & Priority Feed** — municipal/solver inbox with severity ranking, claim/assign actions, and a priority-sorted problem list. After that: FastAPI `POST /reports` multipart (image + audio + title + lat/lng), Bhashini STT, and YOLO on the captured still.

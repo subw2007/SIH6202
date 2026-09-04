@@ -77,3 +77,25 @@ System font (Material `ThemeData` default). No custom font family yet.
 ## Placeholder art
 
 When `imageUrl` is null on feed cards (and on a mocked camera capture), paint asphalt + oval pothole so the UI works without bundled assets.
+
+## Solver Mode extension
+
+Solver Mode reuses the Citizen tokens: page background `#F4F6FB`, white
+surface `#FFFFFF`, ink `#1C2333`, secondary text `#6B7280`, muted metadata
+`#8A93A6`, and primary action blue `#4A62AD`. The header uses a green
+`#4CAF50` avatar circle, a 24px avatar radius, 20px horizontal page margins,
+and a 26px settings icon. Its title is “Priority Feed” with “Solver Mode”
+underneath.
+
+The category row is horizontally scrollable and uses icon ChoiceChips:
+All, Infrastructure, Water, Electricity, and Sanitation. All selected uses
+`#4A62AD` with white text. There is no distance slider. The metrics row shows
+“5 problems” in muted metadata and a 20px-radius light-red high-priority pill.
+
+Solver task cards are white with 20px corners, 16px content padding, and a
+light coral priority border. Each card contains an 82px square thumbnail with
+16px corners, solid priority/category metadata chips, a two-line title,
+distance/upvotes/team metadata, a two-line description, status pill, view
+details icon, Join Team outline button, and `#4A62AD` Work on This button.
+High/Critical uses `#E53935`, Medium `#FB8C00`, Low `#4CAF50`; verified status
+uses `#E8F5E9`/`#4CAF50`.
