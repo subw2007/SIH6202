@@ -114,6 +114,19 @@ Photo and mic are **UI mocks** (no `image_picker` / recorder plugins yet).
 - Added notification preferences control: Officers can now toggle notification settings directly from the settings sheet.
 - Added officer profile display: Shows officer ID (mock: "SOL-2024-001") with expandable profile details (TODO).
 - Fixed settings sheet bottom overflow by making the modal scrollable, draggable, and safe-area aware.
+- Added shared `app/mobile/lib/views/widgets/settings_bottom_sheet.dart` for Citizen and Solver settings, with mode-aware account profile labels.
+
+## Unified header layout (2026-09-04)
+
+- Updated `lib/views/citizen_view.dart` and `lib/views/solver_view.dart` to use matching white header cards with padded content and a soft shadow for contrast against the page background.
+- Updated Solver Mode to use the standard light-blue person avatar and the shared username title, with `Solver Mode` retained as the subtitle.
+
+## Solver team flows (2026-09-04)
+
+- Refactored `lib/views/widgets/solver_task_card.dart` to remove the details eye action and upvote metadata, and to display team counts as “X teams”.
+- Added `lib/views/join_team_view.dart` with mock college teams, member/lead details, and Request to Join actions.
+- Added `lib/views/create_team_view.dart` with validated team registration fields and a Create Team & Start Solver Mode flow.
+- Solver card actions now navigate to the team selection or team creation screens.
 
 ## NEXT step
 

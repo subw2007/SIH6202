@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/user_mode_provider.dart';
 import 'report_problem_screen.dart';
 import 'widgets/citizen_problem_card.dart';
+import 'widgets/settings_bottom_sheet.dart';
 
 const _kBannerBlue = Color(0xFF4A62AD);
 const _kPageBg = Color(0xFFF4F6FB);
@@ -72,14 +73,17 @@ class CitizenView extends StatelessWidget {
           children: [
             CustomScrollView(
               slivers: [
-                SliverToBoxAdapter(child: _CitizenHeader(username: mode.username)),
+                SliverToBoxAdapter(
+                  child: _CitizenHeader(username: mode.username),
+                ),
                 const SliverToBoxAdapter(child: _ReportBanner()),
                 const SliverToBoxAdapter(child: _FeedHeader()),
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 108),
                   sliver: SliverList.separated(
                     itemCount: citizenFeedMock.length,
-                    separatorBuilder: (context, index) => const SizedBox(height: 16),
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 16),
                     itemBuilder: (context, index) {
                       return CitizenProblemCard(post: citizenFeedMock[index]);
                     },
@@ -105,14 +109,26 @@ class _CitizenHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 12, 8),
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Row(
         children: [
           const CircleAvatar(
             radius: 24,
             backgroundColor: Color(0xFFD7DEF2),
-            child: Icon(Icons.person_rounded, color: _kBannerBlue, size: 28),
+            child: Icon(Icons.person, color: _kBannerBlue, size: 28),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -141,7 +157,7 @@ class _CitizenHeader extends StatelessWidget {
           ),
           IconButton(
             tooltip: 'Settings',
-            onPressed: () => showModeToggleSheet(context),
+            onPressed: () => showSettingsBottomSheet(context),
             icon: const Icon(Icons.settings_outlined, color: _kInk, size: 26),
           ),
         ],
@@ -180,7 +196,11 @@ class _ReportBanner extends StatelessWidget {
                 SizedBox(height: 10),
                 Row(
                   children: [
-                    Icon(Icons.photo_camera_outlined, color: Colors.white, size: 20),
+                    Icon(
+                      Icons.photo_camera_outlined,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                     SizedBox(width: 8),
                     Icon(Icons.mic_none_rounded, color: Colors.white, size: 20),
                     SizedBox(width: 8),
@@ -256,7 +276,11 @@ class _ReportProblemFab extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.photo_camera_outlined, color: Colors.white, size: 22),
+                Icon(
+                  Icons.photo_camera_outlined,
+                  color: Colors.white,
+                  size: 22,
+                ),
                 SizedBox(width: 10),
                 Text(
                   'Report Problem',
@@ -274,72 +298,3 @@ class _ReportProblemFab extends StatelessWidget {
     );
   }
 }
-
-Future<void> showModeToggleSheet(BuildContext context) {
-  return showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    backgroundColor: Colors.white,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
-    builder: (sheetContext) {
-      return Consumer<UserModeProvider>(
-        builder: (context, provider, _) {
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(24, 4, 24, 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Switch view',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: _kInk,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Citizen Mode shows the local problem feed. Official Mode is reserved for municipal staff.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF6B7280),
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.people_alt_outlined, color: _kBannerBlue),
-                  title: const Text('Citizen Mode'),
-                  trailing: provider.isCitizenMode
-                      ? const Icon(Icons.check_circle, color: _kBannerBlue)
-                      : null,
-                  onTap: () {
-                    provider.setCitizenMode(true);
-                    Navigator.pop(sheetContext);
-                  },
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.badge_outlined, color: _kBannerBlue),
-                  title: const Text('Official Mode'),
-                  trailing: !provider.isCitizenMode
-                      ? const Icon(Icons.check_circle, color: _kBannerBlue)
-                      : null,
-                  onTap: () {
-                    provider.setCitizenMode(false);
-                    Navigator.pop(sheetContext);
-                  },
-                ),
-              ],
-            ),
-          );
-        },
-      );
-    },
-  );
-}
-
