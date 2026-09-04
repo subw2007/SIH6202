@@ -1,0 +1,10 @@
+# Exclude build & asset directories from context
+.dart_tool/
+build/
+android/
+ios/
+web/
+*.lock
+*.png
+*.jpeg
+*.svg

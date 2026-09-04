@@ -1,0 +1,80 @@
+# ==========================================
+# Environment Variables & Secrets (CRITICAL)
+# ==========================================
+.env
+*.env
+*.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+
+# ==========================================
+# Python & FastAPI Backend
+# ==========================================
+app/backend/__pycache__/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.pytest_cache/
+.coverage
+htmlcov/
+*.db
+*.sqlite3
+
+# ==========================================
+# Flutter & Dart Mobile App
+# ==========================================
+app/mobile/.dart_tool/
+app/mobile/.fvm/
+app/mobile/.flutter-plugins
+app/mobile/.flutter-plugins-dependencies
+app/mobile/.pub-cache/
+app/mobile/.pub/
+app/mobile/build/
+app/mobile/ephemeral/
+
+# Android-specific Flutter files
+app/mobile/android/.gradle/
+app/mobile/android/captures/
+app/mobile/android/app/debug/
+app/mobile/android/app/profile/
+app/mobile/android/app/release/
+app/mobile/android/key.properties
+app/mobile/android/local.properties
+
+# iOS-specific Flutter files
+app/mobile/ios/Flutter/Generated.xcconfig
+app/mobile/ios/Flutter/app.flx
+app/mobile/ios/Flutter/app.framework
+app/mobile/ios/Flutter/flutter_assets/
+app/mobile/ios/Runner/GeneratedPluginRegistrant.h
+app/mobile/ios/Runner/GeneratedPluginRegistrant.m
+app/mobile/ios/Pods/
+app/mobile/ios/Podfile.lock
+app/mobile/ios/.symlinks/
+
+# Web-specific Flutter files
+app/mobile/web/flutter_bootstrap.js
+
+# ==========================================
+# IDEs, Editors & OS Files
+# ==========================================
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+Thumbs.db
