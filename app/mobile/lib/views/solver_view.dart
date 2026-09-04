@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../providers/solver_provider.dart';
 import '../providers/user_mode_provider.dart';
+import 'citizen_view.dart';
 import 'widgets/solver_task_card.dart';
 
 const _kPageBg = Color(0xFFF4F6FB);
@@ -66,8 +68,8 @@ class SolverView extends StatelessWidget {
         ),
         actions: [
           IconButton(
-            tooltip: 'Switch to Citizen Space',
-            onPressed: modeProvider.toggleMode,
+            tooltip: 'Settings',
+            onPressed: () => _showSettingsSheet(context),
             icon: const Icon(Icons.settings_outlined, size: 26),
           ),
           const SizedBox(width: 8),
@@ -199,6 +201,99 @@ class SolverView extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _showSettingsSheet(BuildContext context) {
+    return showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return Consumer<UserModeProvider>(
+          builder: (context, provider, _) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(24, 4, 24, 32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Settings & Profile',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: _kInk,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  // Switch Mode Tile
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.swap_horiz, color: _kBannerBlue),
+                    title: const Text('Switch Mode (Citizen / Official)'),
+                    trailing: const Icon(Icons.chevron_right, color: _kSecondaryText),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      showModeToggleSheet(context);
+                    },
+                  ),
+                  const Divider(height: 16),
+                  // Language Selection Tile
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.language, color: _kBannerBlue),
+                    title: const Text('Language Selection (Bhashini)'),
+                    subtitle: const Text('English • Hindi • Regional'),
+                    trailing: const Icon(Icons.chevron_right, color: _kSecondaryText),
+                    onTap: () {
+                      // TODO: Implement language selection with Bhashini
+                      Navigator.pop(sheetContext);
+                    },
+                  ),
+                  const Divider(height: 16),
+                  // Notification Preferences Tile
+                  StatefulBuilder(
+                    builder: (context, setState) {
+                      bool notificationsEnabled = true;
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.notifications_outlined, color: _kBannerBlue),
+                        title: const Text('Notification Preferences'),
+                        trailing: Switch(
+                          value: notificationsEnabled,
+                          onChanged: (value) {
+                            setState(() {
+                              notificationsEnabled = value;
+                            });
+                            // TODO: Implement notification preference saving
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                  const Divider(height: 16),
+                  // Account / Officer Profile Tile
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.badge_outlined, color: _kBannerBlue),
+                    title: const Text('Account / Officer Profile'),
+                    subtitle: const Text('Officer ID: SOL-2024-001'),
+                    trailing: const Icon(Icons.chevron_right, color: _kSecondaryText),
+                    onTap: () {
+                      // TODO: Implement officer profile details view
+                      Navigator.pop(sheetContext);
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

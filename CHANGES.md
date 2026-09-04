@@ -98,6 +98,22 @@ Photo and mic are **UI mocks** (no `image_picker` / recorder plugins yet).
 - `SolverProvider.setCategory()`: category chip mutation.
 - `SolverProvider.updateStatus()`: Work on This status mutation.
 
+## Solver settings sheet refactor (2026-09-04)
+
+### Modified files
+
+| File | Modification |
+| --- | --- |
+| `lib/views/solver_view.dart` | Refactored the top-right settings gear icon to open a dedicated "Settings & Profile" bottom sheet instead of directly switching mode. The sheet now includes: (1) "Switch Mode (Citizen / Official)" tile that triggers `showModeToggleSheet()`, (2) "Language Selection (Bhashini)" placeholder for English/Hindi/Regional languages, (3) "Notification Preferences" toggle tile, (4) "Account / Officer Profile" tile with officer ID display. Tooltip updated from "Switch to Citizen Space" to "Settings". Added `import` for `Provider` and `citizen_view.showModeToggleSheet()`. |
+
+### UI improvements
+
+- Unified settings access point: All officer profile and preference settings are now consolidated in a single "Settings & Profile" bottom sheet.
+- Enhanced mode switching: Mode toggle is now one option among multiple settings rather than the primary action.
+- Added language selection placeholder: Prepared for Bhashini integration in the future.
+- Added notification preferences control: Officers can now toggle notification settings directly from the settings sheet.
+- Added officer profile display: Shows officer ID (mock: "SOL-2024-001") with expandable profile details (TODO).
+
 ## NEXT step
 
 **Build Solver Mode View & Priority Feed** — municipal/solver inbox with severity ranking, claim/assign actions, and a priority-sorted problem list. After that: FastAPI `POST /reports` multipart (image + audio + title + lat/lng), Bhashini STT, and YOLO on the captured still.
