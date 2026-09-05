@@ -96,20 +96,15 @@ class ReportFormProvider extends ChangeNotifier {
   }
 
   Future<void> pickImage(ImagePickSource source) async {
-    _hasImage = true;
-    _imageSource = source;
-    notifyListeners();
-
     try {
       final bytes = await selectImage(source);
       if (bytes != null && bytes.isNotEmpty) {
         _imageBytes = bytes;
         _hasImage = true;
+        _imageSource = source;
         notifyListeners();
       }
-    } catch (_) {
-      // Keep optimistic mock state
-    }
+    } catch (_) {}
   }
 
   void clearImage() {

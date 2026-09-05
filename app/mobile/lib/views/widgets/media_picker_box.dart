@@ -164,10 +164,15 @@ class _Preview extends StatelessWidget {
               width: double.infinity,
               height: double.infinity,
             )
-          else ...[
-            const ColoredBox(color: Color(0xFF5A5F68)),
-            CustomPaint(painter: _CapturedStillPainter()),
-          ],
+          else
+            Container(
+              color: const Color(0xFFEEF1F8),
+              child: const Center(
+                child: CircularProgressIndicator(
+                  color: Color(0xFF4A62AD),
+                ),
+              ),
+            ),
           Positioned(
             right: 10,
             top: 10,
@@ -222,23 +227,3 @@ class _DashBorderPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-class _CapturedStillPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final hole = Paint()..color = const Color(0xFF2A2D33);
-    final rim = Paint()
-      ..color = const Color(0xFF8A9098)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 6;
-    final oval = Rect.fromCenter(
-      center: Offset(size.width * 0.5, size.height * 0.58),
-      width: size.width * 0.55,
-      height: size.height * 0.42,
-    );
-    canvas.drawOval(oval, hole);
-    canvas.drawOval(oval, rim);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
