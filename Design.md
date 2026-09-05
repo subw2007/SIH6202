@@ -55,7 +55,9 @@ System font (Material `ThemeData` default). No custom font family yet.
 ## Layout (feed)
 
 - Horizontal page margin: **20**
-- Header: top 12, avatar radius **24**, settings icon 26
+- Header: white rounded card with horizontal/vertical padding, soft shadow
+  `Colors.black.withOpacity(0.05)` and blur radius **4**; avatar radius **24**,
+  light-blue `#D7DEF2` wash with blue person icon, settings icon 26
 - Banner: radius **22**, inner padding **22 / 20**
 - Card: radius **20**, image height **168**, content padding **16 / 14 / 16 / 16**
 - Feed card gap: **16**
@@ -82,10 +84,10 @@ When `imageUrl` is null on feed cards (and on a mocked camera capture), paint as
 
 Solver Mode reuses the Citizen tokens: page background `#F4F6FB`, white
 surface `#FFFFFF`, ink `#1C2333`, secondary text `#6B7280`, muted metadata
-`#8A93A6`, and primary action blue `#4A62AD`. The header uses a green
-`#4CAF50` avatar circle, a 24px avatar radius, 20px horizontal page margins,
-and a 26px settings icon. Its title is “Priority Feed” with “Solver Mode”
-underneath.
+`#8A93A6`, and primary action blue `#4A62AD`. Its header uses the same white
+rounded card, light-blue `#D7DEF2` avatar wash, blue person icon, 24px avatar
+radius, 20px horizontal page margins, and 26px settings icon as Citizen Mode.
+Its title is the username with “Solver Mode” underneath.
 
 The category row is horizontally scrollable and uses icon ChoiceChips:
 All, Infrastructure, Water, Electricity, and Sanitation. All selected uses

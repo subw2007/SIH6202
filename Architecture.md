@@ -11,10 +11,14 @@ app/mobile/lib/
 └── views/
     ├── citizen_view.dart              # Feed; opens report via openReportProblem()
     ├── report_problem_screen.dart     # Full-screen report modal
+    ├── solver_view.dart               # Official issue feed and team actions
+    ├── join_team_view.dart            # Active teams for a selected issue
+    ├── create_team_view.dart          # New solver team registration form
     └── widgets/
         ├── citizen_problem_card.dart
         ├── audio_player_pill.dart
         ├── media_picker_box.dart      # Photo well
+        ├── settings_bottom_sheet.dart # Shared Citizen/Solver settings and mode sheet
         └── voice_recorder_widget.dart # Mic + waveform
 ```
 
@@ -32,9 +36,31 @@ main()
 
 CitizenView
   watch UserModeProvider.username  → header
-  settings → setCitizenMode
+  settings → SettingsBottomSheet
   banner / FAB → openReportProblem()
+
+SolverView
+  settings → SettingsBottomSheet
+  Join Team → Navigator.push → JoinTeamView(task)
+  Work on This → Navigator.push → CreateTeamView(task)
+
+JoinTeamView
+  Request to Join → mock request snackbar
+
+CreateTeamView
+  valid form → Navigator.pop(true)
+  SolverView receives result → updates task status and shows success snackbar
+
+SettingsBottomSheet
+  watch UserModeProvider.isCitizenMode
+    → Account / Citizen Profile ("Registered Citizen")
+    → Account / Officer Profile ("Officer ID: SOL-2024-001")
+  mode tile → shared showModeToggleSheet
 ```
+
+`SettingsBottomSheet` is opened by both view headers through the same
+scrollable, safe-area-aware modal route. Its account tile reflects the active
+mode, while mode switching continues to mutate the shared `UserModeProvider`.
 
 Audio play on **feed cards** stays inside `AudioPlayerPill`. Upvotes remain stubbed.
 
@@ -129,13 +155,14 @@ SolverView
     ├── PriorityBadge
     ├── thumbnail
     ├── category/title metadata
-    ├── distance/upvotes/team metadata
-    └── status/view/join/work actions
+    ├── distance/team metadata
+    └── status/join/work actions
 ```
 
 `SolverProvider` owns the selected `SolverCategory`, visible category-filtered
 tasks, and high-priority count. Each `SolverTaskCard` receives callbacks for
-details, joining a team, and status updates; it does not own feed state.
+joining a team and creating a team; it does not own feed state. The card no
+longer renders an upvote counter or details eye action.
 
 Official task schema:
 
@@ -155,10 +182,10 @@ Official task schema:
 }
 ```
 
-Official actions map to `SolverProvider.updateStatus(taskId, status)` for
-`Work on This`; details and team joining are callback seams for backend
-integration. Category and metric values are derived from the same task
-collection rather than duplicated state.
+Official actions navigate to the team selection and team creation routes.
+Successful team creation updates `SolverProvider.updateStatus(taskId, status)`;
+category and metric values are derived from the same task collection rather
+than duplicated state.
 
 ## Integration seams (not implemented)
 

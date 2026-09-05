@@ -11,10 +11,12 @@ void main() {
     expect(find.text('Citizen Mode'), findsOneWidget);
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Switch Mode (Citizen / Official)'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Official Mode'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Priority Feed'), findsOneWidget);
+    expect(find.text('Username'), findsOneWidget);
     expect(find.text('Solver Mode'), findsOneWidget);
     expect(find.text('All'), findsOneWidget);
     expect(find.text('5 problems'), findsOneWidget);

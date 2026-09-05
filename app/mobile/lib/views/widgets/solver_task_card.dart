@@ -16,15 +16,13 @@ const _kMedium = Color(0xFFFB8C00);
 class SolverTaskCard extends StatelessWidget {
   const SolverTaskCard({
     required this.task,
-    required this.onStatusChanged,
-    required this.onViewDetails,
+    required this.onWorkOnThis,
     required this.onJoinTeam,
     super.key,
   });
 
   final SolverTask task;
-  final ValueChanged<TaskStatus> onStatusChanged;
-  final VoidCallback onViewDetails;
+  final VoidCallback onWorkOnThis;
   final VoidCallback onJoinTeam;
 
   Color get _priorityColor => task.priority == TaskPriority.medium
@@ -161,10 +159,9 @@ class SolverTaskCard extends StatelessWidget {
               runSpacing: 6,
               children: [
                 _Meta(icon: Icons.location_on_outlined, text: task.distance),
-                _Meta(icon: Icons.keyboard_arrow_up, text: '${task.upvotes}'),
                 _Meta(
                   icon: Icons.person_outline,
-                  text: '${task.teamCount} on team',
+                  text: '${task.teamCount} teams',
                 ),
               ],
             ),
@@ -177,13 +174,6 @@ class SolverTaskCard extends StatelessWidget {
                   background: statusWash,
                 ),
                 const Spacer(),
-                IconButton(
-                  tooltip: 'View details',
-                  onPressed: onViewDetails,
-                  icon: const Icon(Icons.visibility_outlined),
-                  color: _kBannerBlue,
-                  visualDensity: VisualDensity.compact,
-                ),
                 OutlinedButton(
                   onPressed: isResolved ? null : onJoinTeam,
                   style: OutlinedButton.styleFrom(
@@ -198,9 +188,7 @@ class SolverTaskCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 FilledButton.icon(
-                  onPressed: isResolved
-                      ? null
-                      : () => onStatusChanged(TaskStatus.inProgress),
+                  onPressed: isResolved ? null : onWorkOnThis,
                   style: FilledButton.styleFrom(
                     backgroundColor: _kBannerBlue,
                     minimumSize: const Size(0, 38),
