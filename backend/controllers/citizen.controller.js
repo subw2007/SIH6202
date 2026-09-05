@@ -12,6 +12,7 @@ const CitizenReportModel = require('../models/citizenReport.model');
  */
 const getCitizenFeed = async (req, res, next) => {
   try {
+    console.log(`[CONTROLLER] ${req.method} ${req.originalUrl} fetch citizen feed`);
     const reports = await CitizenReportModel.findAll();
     return res.status(200).json({
       success: true,
@@ -53,6 +54,7 @@ const getReportById = async (req, res, next) => {
  */
 const createReport = async (req, res, next) => {
   try {
+    console.log(`[CONTROLLER] ${req.method} ${req.originalUrl} create report`);
     const { title, location, has_image, hasImage, image_source, imageSource, audio_path, audioPath, audio_duration_ms, audioDurationMs } = req.body;
 
     const hasAnyContent = (title && title.trim().length > 0) || has_image || hasImage || audio_path || audioPath;

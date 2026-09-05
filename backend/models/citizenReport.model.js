@@ -29,12 +29,16 @@ class CitizenReportModel {
       audio_path: item.audio_path || item.audioPath || null,
       imageSource: item.imageSource || item.image_source || null,
       image_source: item.image_source || item.imageSource || null,
+      imageBase64: item.imageBase64 || item.image_base64 || null,
+      image_base64: item.image_base64 || item.imageBase64 || null,
       createdAt: item.createdAt || new Date().toISOString(),
     };
   }
 
   static async findAll() {
-    return db.citizenReports.map(this.formatReport);
+    return [...db.citizenReports]
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .map(this.formatReport);
   }
 
   static async findById(id) {
@@ -43,7 +47,11 @@ class CitizenReportModel {
   }
 
   static async create(data) {
-    const newId = `rpt_${String(db.citizenReports.length + 1).padStart(3, '0')}`;
+    const nextNumber = db.citizenReports.reduce((max, report) => {
+      const number = Number.parseInt(String(report.id).replace('rpt_', ''), 10);
+      return Number.isNaN(number) ? max : Math.max(max, number);
+    }, 0) + 1;
+    const newId = `rpt_${String(nextNumber).padStart(3, '0')}`;
     
     // Format duration helper if audio_duration_ms provided
     let audioDurationStr = '0:00';
@@ -75,10 +83,13 @@ class CitizenReportModel {
       audio_path: data.audio_path || data.audioPath || null,
       imageSource: data.image_source || data.imageSource || null,
       image_source: data.image_source || data.imageSource || null,
+      imageBase64: data.image_base64 || data.imageBase64 || null,
+      image_base64: data.image_base64 || data.imageBase64 || null,
       createdAt: new Date().toISOString(),
     };
 
-    db.citizenReports.unshift(newReport);
+    db.citizenReports.push(newReport);
+    db.save();
     return this.formatReport(newReport);
   }
 
@@ -87,6 +98,7 @@ class CitizenReportModel {
     if (!report) return null;
     report.upvoteCount = (report.upvoteCount || report.upvote_count || 0) + 1;
     report.upvote_count = report.upvoteCount;
+    db.save();
     return this.formatReport(report);
   }
 
@@ -94,6 +106,7 @@ class CitizenReportModel {
     const index = db.citizenReports.findIndex((r) => r.id === id);
     if (index === -1) return false;
     db.citizenReports.splice(index, 1);
+    db.save();
     return true;
   }
 }

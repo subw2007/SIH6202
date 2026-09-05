@@ -1,8 +1,12 @@
 /**
- * Database configuration & In-Memory Data Store
- * Provides initialized mock data that strictly mirrors the frontend's models
- * and provides thread-safe helper methods for CRUD operations.
+ * File-backed persistence for the CivicPulse API.
+ *
+ * JSON is intentionally used here so the backend remains zero-config for local
+ * development and can be replaced by SQLite without changing model contracts.
  */
+
+const fs = require('node:fs');
+const path = require('node:path');
 
 const citizenFeedInitial = [
   {
@@ -175,16 +179,54 @@ const userStateInitial = {
 
 class DatabaseStore {
   constructor() {
-    this.citizenReports = [...citizenFeedInitial];
-    this.solverTasks = [...solverTasksInitial];
+    this.filePath =
+      process.env.DB_FILE || path.join(__dirname, '..', 'data', 'civicpulse.json');
+    this.persist = process.env.NODE_ENV !== 'test';
+    this.citizenReports = [];
+    this.solverTasks = [];
     this.user = { ...userStateInitial };
-    this.isConnected = true;
+    this.isConnected = false;
   }
 
   async connect() {
-    // Allows plugging real MongoDB/PostgreSQL here if URI provided
-    console.log(`[DB] Connected to database store (${process.env.DB_URI || 'In-Memory Store'})`);
+    if (this.persist && fs.existsSync(this.filePath)) {
+      const stored = JSON.parse(fs.readFileSync(this.filePath, 'utf8'));
+      this.citizenReports = Array.isArray(stored.citizenReports)
+        ? stored.citizenReports
+        : [...citizenFeedInitial];
+      this.solverTasks = Array.isArray(stored.solverTasks)
+        ? stored.solverTasks
+        : [...solverTasksInitial];
+      this.user = { ...userStateInitial, ...(stored.user || {}) };
+    } else {
+      this.citizenReports = [...citizenFeedInitial];
+      this.solverTasks = [...solverTasksInitial];
+      this.user = { ...userStateInitial };
+      this.save();
+    }
+
+    this.isConnected = true;
+    console.log(`[DB] Connected to file-backed store (${this.persist ? this.filePath : 'test memory'})`);
     return this;
+  }
+
+  save() {
+    if (!this.persist) return;
+    fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
+    const temporaryPath = `${this.filePath}.tmp`;
+    fs.writeFileSync(
+      temporaryPath,
+      JSON.stringify(
+        {
+          citizenReports: this.citizenReports,
+          solverTasks: this.solverTasks,
+          user: this.user,
+        },
+        null,
+        2
+      )
+    );
+    fs.renameSync(temporaryPath, this.filePath);
   }
 }
 

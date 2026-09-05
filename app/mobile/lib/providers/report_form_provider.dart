@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 
 import '../services/api_service.dart';
 import '../services/image_picker_helper.dart';
+import '../views/widgets/citizen_problem_card.dart';
 
 enum LocationDetectState { detecting, ready, failed }
 
@@ -15,6 +15,10 @@ enum ImagePickSource { camera, gallery }
 
 /// Local composer state for a new citizen report. Reset per route instance.
 class ReportFormProvider extends ChangeNotifier {
+  ReportFormProvider() {
+    fetchCitizenReports();
+  }
+
   static const maxVoice = Duration(seconds: 60);
   static const mockAddress = 'Main St, Sector 4';
 
@@ -30,6 +34,9 @@ class ReportFormProvider extends ChangeNotifier {
   Duration _playbackElapsed = Duration.zero;
   bool _isSubmitting = false;
   bool _submitted = false;
+  List<CitizenProblemPost> _citizenReports = [];
+  bool _isFetchingReports = false;
+  String? _feedError;
 
   Timer? _locationTimer;
   Timer? _voiceTimer;
@@ -49,6 +56,23 @@ class ReportFormProvider extends ChangeNotifier {
   bool get isSubmitting => _isSubmitting;
   bool get submitted => _submitted;
   bool get hasVoiceNote => _recordedAudioPath != null;
+  List<CitizenProblemPost> get citizenReports => List.unmodifiable(_citizenReports);
+  bool get isFetchingReports => _isFetchingReports;
+  String? get feedError => _feedError;
+
+  Future<void> fetchCitizenReports() async {
+    _isFetchingReports = true;
+    _feedError = null;
+    notifyListeners();
+    try {
+      _citizenReports = await ApiService.instance.fetchCitizenFeed();
+    } catch (error) {
+      _feedError = 'Unable to load reports. Please try again.';
+    } finally {
+      _isFetchingReports = false;
+      notifyListeners();
+    }
+  }
 
   bool get canSubmit =>
       !_isSubmitting &&
@@ -104,7 +128,9 @@ class ReportFormProvider extends ChangeNotifier {
         _imageSource = source;
         notifyListeners();
       }
-    } catch (_) {}
+    } catch (error) {
+      debugPrint('[REPORT FORM IMAGE ERROR] $error');
+    }
   }
 
   void clearImage() {
@@ -187,18 +213,25 @@ class ReportFormProvider extends ChangeNotifier {
     });
   }
 
-  Future<bool> submit() async {
+  Future<bool> submitReport() async {
     if (!canSubmit) return false;
     _isSubmitting = true;
+    _feedError = null;
     notifyListeners();
     try {
       await ApiService.instance.submitReport(toPayload());
-    } catch (_) {}
-    await Future<void>.delayed(const Duration(milliseconds: 450));
-    _isSubmitting = false;
-    _submitted = true;
-    notifyListeners();
-    return true;
+      await fetchCitizenReports();
+      _submitted = true;
+      return true;
+    } catch (error) {
+      _feedError = 'Unable to submit report. Please try again.';
+      debugPrint('[REPORT FORM ERROR] $error');
+      return false;
+    } finally {
+      _isSubmitting = false;
+      notifyListeners();
+    }
+
   }
 
   void _stopPlayback() {

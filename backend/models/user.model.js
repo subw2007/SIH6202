@@ -22,12 +22,14 @@ class UserModel {
 
   static async updateMode(isCitizenMode) {
     db.user.isCitizenMode = Boolean(isCitizenMode);
+    db.save();
     return this.formatUser(db.user);
   }
 
   static async updateUsername(username) {
     if (username && typeof username === 'string') {
       db.user.username = username.trim();
+      db.save();
     }
     return this.formatUser(db.user);
   }

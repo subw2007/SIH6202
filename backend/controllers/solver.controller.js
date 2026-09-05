@@ -12,6 +12,7 @@ const SolverTaskModel = require('../models/solverTask.model');
  */
 const getSolverTasks = async (req, res, next) => {
   try {
+    console.log(`[CONTROLLER] ${req.method} ${req.originalUrl} fetch solver tasks`);
     const { category, status, priority } = req.query;
     const tasks = await SolverTaskModel.findAll({ category, status, priority });
     
@@ -65,6 +66,7 @@ const getSolverTaskById = async (req, res, next) => {
  */
 const updateTaskStatus = async (req, res, next) => {
   try {
+    console.log(`[CONTROLLER] ${req.method} ${req.originalUrl} update task status`);
     const { status } = req.body;
     const validStatuses = ['pending', 'inProgress', 'in_progress', 'resolved'];
 

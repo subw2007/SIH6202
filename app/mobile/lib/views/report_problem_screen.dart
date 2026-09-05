@@ -10,11 +10,12 @@ const _kInk = Color(0xFF1C2333);
 const _kPage = Color(0xFFF4F6FB);
 
 Future<void> openReportProblem(BuildContext context) {
+  final provider = context.read<ReportFormProvider>()..startLocationDetection();
   return Navigator.of(context).push(
     MaterialPageRoute<void>(
       fullscreenDialog: true,
-      builder: (_) => ChangeNotifierProvider(
-        create: (_) => ReportFormProvider()..startLocationDetection(),
+      builder: (_) => ChangeNotifierProvider.value(
+        value: provider,
         child: const ReportProblemScreen(),
       ),
     ),
@@ -139,7 +140,7 @@ class ReportProblemScreen extends StatelessWidget {
 
   Future<void> _submit(BuildContext context) async {
     final form = context.read<ReportFormProvider>();
-    final ok = await form.submit();
+    final ok = await form.submitReport();
     if (!ok || !context.mounted) return;
 
     await showDialog<void>(

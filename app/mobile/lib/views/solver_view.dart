@@ -40,8 +40,8 @@ class SolverView extends StatelessWidget {
               const SizedBox(height: 20),
               Row(
                 children: [
-                  const Text(
-                    '5 problems',
+                  Text(
+                    '${solverProvider.tasks.length} problems',
                     style: TextStyle(color: _kMutedMeta, fontSize: 14),
                   ),
                   const Spacer(),
@@ -66,16 +66,33 @@ class SolverView extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              ...solverProvider.visibleTasks.map(
-                (task) => Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: SolverTaskCard(
-                    task: task,
-                    onJoinTeam: () => _openJoinTeam(context, task),
-                    onWorkOnThis: () => _openCreateTeam(context, task),
+              if (solverProvider.isLoading && solverProvider.tasks.isEmpty)
+                const Center(child: CircularProgressIndicator())
+              else if (solverProvider.error != null && solverProvider.tasks.isEmpty)
+                Center(
+                  child: Column(
+                    children: [
+                      Text(solverProvider.error!),
+                      TextButton(
+                        onPressed: solverProvider.fetchTasks,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
+              else if (solverProvider.visibleTasks.isEmpty)
+                const Center(child: Text('No tasks found.'))
+              else
+                ...solverProvider.visibleTasks.map(
+                  (task) => Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: SolverTaskCard(
+                      task: task,
+                      onJoinTeam: () => _openJoinTeam(context, task),
+                      onWorkOnThis: () => _openCreateTeam(context, task),
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),

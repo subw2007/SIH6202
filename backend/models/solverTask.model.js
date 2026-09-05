@@ -29,7 +29,13 @@ class SolverTaskModel {
   }
 
   static async findAll(filter = {}) {
-    let tasks = [...db.solverTasks];
+    let tasks = [...db.solverTasks].sort((a, b) => {
+      const priorityRank = { critical: 0, high: 1, medium: 2, low: 3 };
+      const priorityDifference =
+        (priorityRank[a.priority] ?? 2) - (priorityRank[b.priority] ?? 2);
+      if (priorityDifference !== 0) return priorityDifference;
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
 
     if (filter.category && filter.category.toLowerCase() !== 'all') {
       tasks = tasks.filter(
@@ -75,7 +81,8 @@ class SolverTaskModel {
       createdAt: new Date().toISOString(),
     };
 
-    db.solverTasks.unshift(newTask);
+    db.solverTasks.push(newTask);
+    db.save();
     return this.formatTask(newTask);
   }
 
@@ -84,6 +91,7 @@ class SolverTaskModel {
     if (!task) return null;
 
     task.status = newStatus;
+    db.save();
     return this.formatTask(task);
   }
 
@@ -93,6 +101,7 @@ class SolverTaskModel {
 
     task.teamCount = (task.teamCount || task.team_count || 0) + 1;
     task.team_count = task.teamCount;
+    db.save();
     return this.formatTask(task);
   }
 
@@ -101,6 +110,7 @@ class SolverTaskModel {
     if (!task) return null;
 
     task.upvotes = (task.upvotes || 0) + 1;
+    db.save();
     return this.formatTask(task);
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../providers/report_form_provider.dart';
 import '../providers/user_mode_provider.dart';
 import 'report_problem_screen.dart';
 import 'widgets/citizen_problem_card.dart';
@@ -10,61 +11,23 @@ const _kBannerBlue = Color(0xFF4A62AD);
 const _kPageBg = Color(0xFFF4F6FB);
 const _kInk = Color(0xFF1C2333);
 
-/// Mock local-area feed. Replace with FastAPI list endpoint in the next pass.
-const citizenFeedMock = <CitizenProblemPost>[
-  CitizenProblemPost(
-    id: 'rpt_001',
-    title: 'Deep pothole causing accidents',
-    location: 'Location',
-    timeAgo: '2h ago',
-    upvoteCount: 14,
-    audioDuration: '0:20',
-    isVerified: true,
-  ),
-  CitizenProblemPost(
-    id: 'rpt_002',
-    title: 'Broken streetlight on main road',
-    location: 'MG Road',
-    timeAgo: '5h ago',
-    upvoteCount: 9,
-    audioDuration: '0:12',
-    isVerified: true,
-  ),
-  CitizenProblemPost(
-    id: 'rpt_003',
-    title: 'Overflowing drain after rainfall',
-    location: 'Ward 12',
-    timeAgo: '1d ago',
-    upvoteCount: 21,
-    audioDuration: '0:31',
-    isVerified: false,
-  ),
-  CitizenProblemPost(
-    id: 'rpt_004',
-    title: 'Garbage pile near community park',
-    location: 'Sector 4',
-    timeAgo: '1d ago',
-    upvoteCount: 6,
-    audioDuration: '0:08',
-    isVerified: true,
-  ),
-  CitizenProblemPost(
-    id: 'rpt_005',
-    title: 'Open manhole without barricade',
-    location: 'Bus stand',
-    timeAgo: '2d ago',
-    upvoteCount: 33,
-    audioDuration: '0:18',
-    isVerified: true,
-  ),
-];
-
-class CitizenView extends StatelessWidget {
+class CitizenView extends StatefulWidget {
   const CitizenView({super.key});
+
+  @override
+  State<CitizenView> createState() => _CitizenViewState();
+}
+
+class _CitizenViewState extends State<CitizenView> {
+  @override
+  void initState() {
+    super.initState();
+  }
 
   @override
   Widget build(BuildContext context) {
     final mode = context.watch<UserModeProvider>();
+    final reportProvider = context.watch<ReportFormProvider>();
 
     return Scaffold(
       backgroundColor: _kPageBg,
@@ -80,14 +43,7 @@ class CitizenView extends StatelessWidget {
                 const SliverToBoxAdapter(child: _FeedHeader()),
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 108),
-                  sliver: SliverList.separated(
-                    itemCount: citizenFeedMock.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(height: 16),
-                    itemBuilder: (context, index) {
-                      return CitizenProblemCard(post: citizenFeedMock[index]);
-                    },
-                  ),
+                  sliver: _buildFeed(reportProvider),
                 ),
               ],
             ),
@@ -98,6 +54,41 @@ class CitizenView extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildFeed(ReportFormProvider provider) {
+    if (provider.isFetchingReports && provider.citizenReports.isEmpty) {
+      return const SliverToBoxAdapter(
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (provider.feedError != null && provider.citizenReports.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Center(
+          child: Column(
+            children: [
+              Text(provider.feedError!),
+              TextButton(
+                onPressed: provider.fetchCitizenReports,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    if (provider.citizenReports.isEmpty) {
+      return const SliverToBoxAdapter(
+        child: Center(child: Text('No reports yet.')),
+      );
+    }
+    return SliverList.separated(
+      itemCount: provider.citizenReports.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 16),
+      itemBuilder: (context, index) {
+        return CitizenProblemCard(post: provider.citizenReports[index]);
+      },
     );
   }
 }

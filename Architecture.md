@@ -1,5 +1,57 @@
 # Architecture — Citizen UI (mobile)
 
+## Active client-server flow
+
+Flutter Web and Flutter mobile builds call the Node.js Express API directly
+over HTTP. The backend listens on port `5001`, mounts routes under `/api`, and
+enables wildcard CORS, explicit OPTIONS pre-flight responses, and 50 MB JSON
+payloads. `API_BASE_URL` overrides the mobile default
+`http://localhost:5001/api`.
+
+```text
+Flutter Web / Mobile
+  |
+  | HTTP JSON
+  v
+Node.js Express :5001
+  |
+  +-- GET  /api/citizen-feed
+  +-- POST /api/reports
+  +-- GET  /api/solver-tasks
+  +-- PATCH /api/solver-tasks/:id/status
+```
+
+`ApiService` parses the backend `{ success, data }` envelopes. Network and
+non-2xx responses are surfaced to provider error state rather than replaced by
+local feed data. `CitizenView` and `SolverView` render provider-owned loading,
+error, empty, and live collection states.
+
+### API contracts
+
+`GET /api/citizen-feed` returns `{ success, count, data: CitizenReport[] }`.
+`POST /api/reports` accepts the report JSON payload and returns the created
+report in `data`; a successful submission triggers another citizen-feed GET.
+`GET /api/solver-tasks` accepts an optional `category` query and returns
+`{ success, count, metrics, data: SolverTask[] }`. Task status changes use
+`PATCH /api/solver-tasks/:id/status` with `{ "status": "pending" | "inProgress" | "resolved" }`.
+
+### Persistence and schemas
+
+The default persistence file is `backend/data/civicpulse.json` (set `DB_FILE`
+to relocate it). It contains three collections:
+
+- `CitizenReport`: `id`, `title`, `location`, `createdAt`, `upvoteCount`,
+  `audioDuration`, `audioPath`, `imageSource`, `imageBase64`, and verification
+  state.
+- `SolverTask`: `id`, `title`, `location`, `createdAt`, `priority`, `status`,
+  `category`, `description`, `upvotes`, and `teamCount`.
+- `User`: `id`, `username`, `email`, `role`, and `isCitizenMode`.
+
+Writes use an atomic temporary-file rename. Citizen reports are returned newest
+first; solver tasks are returned by priority and then creation date. Every
+mutating endpoint returns `{ success: true, data: ... }` and controller-level
+request logs are emitted to stdout.
+
 ## Directory map (`app/mobile/lib/`)
 
 ```
@@ -7,7 +59,8 @@ app/mobile/lib/
 ├── main.dart                          # UserModeProvider + MaterialApp + view switcher
 ├── providers/
 │   ├── user_mode_provider.dart        # isCitizenMode, username
-│   └── report_form_provider.dart      # report composer (route-scoped)
+│   ├── report_form_provider.dart      # report composer + citizen feed state
+│   └── solver_provider.dart           # live solver task state
 └── views/
     ├── citizen_view.dart              # Feed; opens report via openReportProblem()
     ├── report_problem_screen.dart     # Full-screen report modal
@@ -28,7 +81,10 @@ Tests: `app/mobile/test/widget_test.dart`. Package name: `mobile`.
 
 ```
 main()
-  └─ ChangeNotifierProvider<UserModeProvider>
+    └─ MultiProvider
+      ├─ UserModeProvider
+      ├─       ReportFormProvider → fetches citizen feed at construction
+      └─ SolverProvider → fetches solver tasks
        └─ CivicPulseApp (MaterialApp)
             └─ _RootSwitcher
                  ├─ isCitizenMode == true  → CitizenView
@@ -36,10 +92,12 @@ main()
 
 CitizenView
   watch UserModeProvider.username  → header
+  watch ReportFormProvider → loading/error/live citizen reports
   settings → SettingsBottomSheet
   banner / FAB → openReportProblem()
 
 SolverView
+  watch SolverProvider → loading/error/live solver tasks
   settings → SettingsBottomSheet
   Join Team → Navigator.push → JoinTeamView(task)
   Work on This → Navigator.push → CreateTeamView(task)
@@ -69,10 +127,8 @@ Audio play on **feed cards** stays inside `AudioPlayerPill`. Upvotes remain stub
 ```
 openReportProblem(context)
   Navigator.push fullscreenDialog
-    ChangeNotifierProvider(
-      create: ReportFormProvider()..startLocationDetection()
+    ChangeNotifierProvider.value(existing app-level ReportFormProvider)
       child: ReportProblemScreen
-    )
 
 startLocationDetection
   locationState = detecting  ("Detecting Location...")
@@ -89,7 +145,7 @@ VoiceRecorderWidget
 
 Submit
   canSubmit = title.trim ≠ "" OR hasImage OR hasVoiceNote
-  submit() delay 450ms → submitted
+  submitReport() → POST /api/reports → GET /api/citizen-feed → notifyListeners
     AlertDialog "Report Submitted Successfully!"
       Back to feed → pop dialog → pop report route → CitizenView
 ```
@@ -118,9 +174,9 @@ Submit
 | `audio_path` | string \| null | Mock URI; replace with device file path |
 | `audio_duration_ms` | int | Elapsed while `voicePhase == recording` |
 
-## Mock feed payload
+## Citizen feed payload
 
-`citizenFeedMock` in `citizen_view.dart` (`CitizenProblemPost.toMockJson()`):
+`CitizenProblemPost` is created from each object in the backend `data` array:
 
 ```json
 {
@@ -135,7 +191,8 @@ Submit
 }
 ```
 
-Submitted reports are **not** appended to the feed in this sprint (no API).
+Submitted reports are returned by the backend and become visible after the
+provider refreshes the feed following a successful POST.
 
 ## Solver Mode extension
 
@@ -187,7 +244,7 @@ Successful team creation updates `SolverProvider.updateStatus(taskId, status)`;
 category and metric values are derived from the same task collection rather
 than duplicated state.
 
-## Integration seams (not implemented)
+## Remaining integration seams
 
 - `POST /reports` multipart: image bytes, audio file, title, lat/lng
 - `image_picker` + camera permission; `record` / Bhashini STT

@@ -51,85 +51,19 @@ class SolverTask {
 }
 
 class SolverProvider extends ChangeNotifier {
-  SolverProvider()
-    : _tasks = [
-        const SolverTask(
-          id: 'pothole-sector-4',
-          title: 'Deep pothole causing accidents near school',
-          timestamp: '2h ago',
-          location: 'Sector 4, Main St',
-          distance: '1.2 km',
-          upvotes: 148,
-          teamCount: 3,
-          priority: TaskPriority.high,
-          status: TaskStatus.pending,
-          category: SolverCategory.infrastructure,
-          description:
-              'Large road damage is disrupting traffic and creating a safety hazard for school commuters.',
-        ),
-        const SolverTask(
-          id: 'streetlight-ward-8',
-          title: 'Streetlight outage near school',
-          timestamp: '4h ago',
-          location: 'Ward 8, Lake Road',
-          distance: '2.4 km',
-          upvotes: 92,
-          teamCount: 2,
-          priority: TaskPriority.high,
-          status: TaskStatus.pending,
-          category: SolverCategory.electricity,
-          description:
-              'Three lights are out along the pedestrian route used by students after sunset.',
-        ),
-        const SolverTask(
-          id: 'drainage-market',
-          title: 'Blocked drainage overflow',
-          timestamp: 'Yesterday',
-          location: 'Central Market, Block B',
-          distance: '3.1 km',
-          upvotes: 61,
-          teamCount: 4,
-          priority: TaskPriority.medium,
-          status: TaskStatus.inProgress,
-          category: SolverCategory.water,
-          description:
-              'Standing water is collecting around the market entrance after recent rainfall.',
-        ),
-        const SolverTask(
-          id: 'garbage-park',
-          title: 'Missed waste collection',
-          timestamp: 'Yesterday',
-          location: 'Green Park, Lane 2',
-          distance: '4.8 km',
-          upvotes: 38,
-          teamCount: 1,
-          priority: TaskPriority.low,
-          status: TaskStatus.resolved,
-          category: SolverCategory.sanitation,
-          description:
-              'Household waste was left uncollected at the scheduled pickup point.',
-        ),
-        const SolverTask(
-          id: 'water-leak',
-          title: 'Water leak on public walkway',
-          timestamp: '2 days ago',
-          location: 'Civic Centre, East Gate',
-          distance: '5.2 km',
-          upvotes: 44,
-          teamCount: 2,
-          priority: TaskPriority.medium,
-          status: TaskStatus.resolved,
-          category: SolverCategory.water,
-          description:
-              'A damaged pipe is causing water to pool on the public walkway.',
-        ),
-      ];
+  SolverProvider() : _tasks = [] {
+    fetchTasks();
+  }
 
   final List<SolverTask> _tasks;
   SolverCategory _category = SolverCategory.all;
+  bool _isLoading = false;
+  String? _error;
 
   List<SolverTask> get tasks => List.unmodifiable(_tasks);
   SolverCategory get category => _category;
+  bool get isLoading => _isLoading;
+  String? get error => _error;
   int get highPriorityCount => _tasks
       .where(
         (task) =>
@@ -144,18 +78,44 @@ class SolverProvider extends ChangeNotifier {
       )
       .toList();
 
+  Future<void> fetchTasks() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+    try {
+      final category = _category.name;
+      final tasks = await ApiService.instance.fetchSolverTasks(category: category);
+      _tasks
+        ..clear()
+        ..addAll(tasks);
+    } catch (error) {
+      _error = 'Unable to load solver tasks. Please try again.';
+      debugPrint('[SOLVER PROVIDER ERROR] $error');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   void setCategory(SolverCategory category) {
     if (_category == category) return;
     _category = category;
     notifyListeners();
   }
 
-  void updateStatus(String taskId, TaskStatus status) {
+  Future<void> updateStatus(String taskId, TaskStatus status) async {
     final index = _tasks.indexWhere((task) => task.id == taskId);
     if (index == -1 || _tasks[index].status == status) return;
+    final previous = _tasks[index];
     _tasks[index] = _tasks[index].copyWith(status: status);
     notifyListeners();
-    // Optimistic sync with backend
-    ApiService.instance.updateTaskStatus(taskId, status.name);
+    try {
+      await ApiService.instance.updateTaskStatus(taskId, status.name);
+    } catch (error) {
+      _tasks[index] = previous;
+      _error = 'Unable to update task status. Please try again.';
+      debugPrint('[SOLVER PROVIDER ERROR] $error');
+      notifyListeners();
+    }
   }
 }

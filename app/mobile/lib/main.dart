@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'providers/solver_provider.dart';
+import 'providers/report_form_provider.dart';
 import 'providers/user_mode_provider.dart';
 import 'views/citizen_view.dart';
 import 'views/solver_view.dart';
@@ -19,6 +20,7 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => UserModeProvider()),
         ChangeNotifierProvider(create: (_) => SolverProvider()),
+        ChangeNotifierProvider(create: (_) => ReportFormProvider()),
       ],
       child: const CivicPulseApp(),
     );

@@ -1,5 +1,15 @@
 # CHANGES
 
+## Live REST integration (2026-09-05)
+
+- Rebuilt the Express backend around a file-backed JSON store at `backend/data/civicpulse.json` (configurable with `DB_FILE`), preserving seeded data on first boot and all report, task, and user mutations across restarts.
+- Changed the Express default port from `5000` to `5001`; the API is available at `http://localhost:5001/api`.
+- Added wildcard CORS for all supported REST methods, explicit pre-flight handling, and 50 MB JSON/urlencoded payload limits for image payloads.
+- Replaced `citizenFeedMock` and `solverTasksMock` rendering with live provider state loaded from `GET /api/citizen-feed` and `GET /api/solver-tasks`.
+- `ReportFormProvider` fetches the citizen feed on provider initialization and refreshes it after a successful `POST /api/reports`, so new reports appear immediately after submission.
+- `SolverProvider` starts with an empty task collection and fetches live tasks during initialization; loading, empty, and request-error states are shown by `SolverView`.
+- Replaced the custom Flutter `HttpClient` with `package:http`, dynamic `API_BASE_URL` configuration, structured non-2xx errors, and explicit socket/client diagnostics.
+
 ## Created files (`app/mobile/lib/`)
 
 ### Citizen feed (previous)
