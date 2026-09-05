@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../services/api_service.dart';
+
 enum TaskPriority { critical, high, medium, low }
 
 enum TaskStatus { pending, inProgress, resolved }
@@ -153,5 +155,7 @@ class SolverProvider extends ChangeNotifier {
     if (index == -1 || _tasks[index].status == status) return;
     _tasks[index] = _tasks[index].copyWith(status: status);
     notifyListeners();
+    // Optimistic sync with backend
+    ApiService.instance.updateTaskStatus(taskId, status.name);
   }
 }

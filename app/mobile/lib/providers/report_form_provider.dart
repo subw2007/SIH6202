@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../services/api_service.dart';
+
 enum LocationDetectState { detecting, ready, failed }
 
 enum VoiceNotePhase { idle, recording, recorded, playing }
@@ -176,6 +178,9 @@ class ReportFormProvider extends ChangeNotifier {
     if (!canSubmit) return false;
     _isSubmitting = true;
     notifyListeners();
+    try {
+      await ApiService.instance.submitReport(toPayload());
+    } catch (_) {}
     await Future<void>.delayed(const Duration(milliseconds: 450));
     _isSubmitting = false;
     _submitted = true;
