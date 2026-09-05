@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../../providers/report_form_provider.dart';
@@ -7,12 +9,14 @@ class MediaPickerBox extends StatelessWidget {
   const MediaPickerBox({
     super.key,
     required this.hasImage,
+    this.imageBytes,
     required this.hint,
     required this.onPick,
     required this.onClear,
   });
 
   final bool hasImage;
+  final Uint8List? imageBytes;
   final String hint;
   final ValueChanged<ImagePickSource> onPick;
   final VoidCallback onClear;
@@ -27,7 +31,10 @@ class MediaPickerBox extends StatelessWidget {
         SizedBox(
           height: boxHeight,
           child: hasImage
-              ? _Preview(onRetake: () => _chooseSource(context))
+              ? _Preview(
+                  imageBytes: imageBytes,
+                  onRetake: () => _chooseSource(context),
+                )
               : _Empty(hint: hint, onTap: () => _chooseSource(context)),
         ),
         if (hasImage) ...[
@@ -135,9 +142,13 @@ class _Empty extends StatelessWidget {
 }
 
 class _Preview extends StatelessWidget {
-  const _Preview({required this.onRetake});
+  const _Preview({
+    required this.onRetake,
+    this.imageBytes,
+  });
 
   final VoidCallback onRetake;
+  final Uint8List? imageBytes;
 
   @override
   Widget build(BuildContext context) {
@@ -146,8 +157,17 @@ class _Preview extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          const ColoredBox(color: Color(0xFF5A5F68)),
-          CustomPaint(painter: _CapturedStillPainter()),
+          if (imageBytes != null && imageBytes!.isNotEmpty)
+            Image.memory(
+              imageBytes!,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+            )
+          else ...[
+            const ColoredBox(color: Color(0xFF5A5F68)),
+            CustomPaint(painter: _CapturedStillPainter()),
+          ],
           Positioned(
             right: 10,
             top: 10,

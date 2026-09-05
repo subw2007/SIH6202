@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 
 import '../services/api_service.dart';
+import '../services/image_picker_helper.dart';
 
 enum LocationDetectState { detecting, ready, failed }
 
@@ -20,6 +23,7 @@ class ReportFormProvider extends ChangeNotifier {
   LocationDetectState _locationState = LocationDetectState.detecting;
   bool _hasImage = false;
   ImagePickSource? _imageSource;
+  Uint8List? _imageBytes;
   String? _recordedAudioPath;
   VoiceNotePhase _voicePhase = VoiceNotePhase.idle;
   Duration _voiceElapsed = Duration.zero;
@@ -36,6 +40,7 @@ class ReportFormProvider extends ChangeNotifier {
   LocationDetectState get locationState => _locationState;
   bool get hasImage => _hasImage;
   ImagePickSource? get imageSource => _imageSource;
+  Uint8List? get imageBytes => _imageBytes;
   String? get recordedAudioPath => _recordedAudioPath;
   VoiceNotePhase get voicePhase => _voicePhase;
   Duration get voiceElapsed => _voiceElapsed;
@@ -68,6 +73,7 @@ class ReportFormProvider extends ChangeNotifier {
         'location': _locationLabel,
         'has_image': _hasImage,
         'image_source': _imageSource?.name,
+        'image_base64': _imageBytes != null ? base64Encode(_imageBytes!) : null,
         'audio_path': _recordedAudioPath,
         'audio_duration_ms': _voiceElapsed.inMilliseconds,
       };
@@ -89,15 +95,27 @@ class ReportFormProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void pickImage(ImagePickSource source) {
+  Future<void> pickImage(ImagePickSource source) async {
     _hasImage = true;
     _imageSource = source;
     notifyListeners();
+
+    try {
+      final bytes = await selectImage(source);
+      if (bytes != null && bytes.isNotEmpty) {
+        _imageBytes = bytes;
+        _hasImage = true;
+        notifyListeners();
+      }
+    } catch (_) {
+      // Keep optimistic mock state
+    }
   }
 
   void clearImage() {
     _hasImage = false;
     _imageSource = null;
+    _imageBytes = null;
     notifyListeners();
   }
 

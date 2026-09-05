@@ -65,6 +65,7 @@ class ReportProblemScreen extends StatelessWidget {
                   const SizedBox(height: 8),
                   MediaPickerBox(
                     hasImage: form.hasImage,
+                    imageBytes: form.imageBytes,
                     hint: form.imageHint,
                     onPick: form.pickImage,
                     onClear: form.clearImage,
