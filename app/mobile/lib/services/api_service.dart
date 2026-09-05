@@ -11,7 +11,7 @@ class ApiService {
   ApiService._();
   static final ApiService instance = ApiService._();
 
-  static const String _defaultUrl = 'http://10.0.2.2:5000/api';
+  static const String _defaultUrl = 'http://10.0.2.2:5001/api';
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: _defaultUrl,
