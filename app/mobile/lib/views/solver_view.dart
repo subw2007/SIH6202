@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../providers/auth_provider.dart';
 import '../providers/solver_provider.dart';
 import '../providers/user_mode_provider.dart';
+import '../providers/teams_provider.dart';
 import 'create_team_view.dart';
 import 'join_team_view.dart';
 import 'widgets/settings_bottom_sheet.dart';
 import 'widgets/solver_task_card.dart';
+import 'widgets/feed_filter_bar.dart';
 
 const _kPageBg = Color(0xFFF4F6FB);
 const _kSurface = Color(0xFFFFFFFF);
@@ -26,108 +30,106 @@ class SolverView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final teamsProvider = context.watch<TeamsProvider>();
     return Scaffold(
       backgroundColor: _kPageBg,
       body: SafeArea(
         child: ListenableBuilder(
           listenable: solverProvider,
-          builder: (context, child) => ListView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
-            children: [
-              _SolverHeader(username: modeProvider.username),
-              const SizedBox(height: 12),
-              _buildCategoryFilters(),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  const Text(
-                    '5 problems',
-                    style: TextStyle(color: _kMutedMeta, fontSize: 14),
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
+          builder: (context, child) => RefreshIndicator(
+            onRefresh: solverProvider.fetchTasks,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+              children: [
+                const _SolverHeader(),
+                const SizedBox(height: 12),
+                FeedFilterBar(
+                  city: 'All',
+                  category: 'All',
+                  severity: 'All',
+                  onChanged: (city, category, severity) =>
+                      solverProvider.fetchTasks(
+                        city: city,
+                        category: category,
+                        severity: severity,
+                      ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Text(
+                      '${solverProvider.tasks.length} problems',
+                      style: const TextStyle(color: _kMutedMeta, fontSize: 14),
                     ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFDE9E7),
-                      borderRadius: BorderRadius.circular(20),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFDE9E7),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '• ${solverProvider.highPriorityCount} high priority',
+                        style: const TextStyle(
+                          color: Color(0xFFC62828),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
-                    child: Text(
-                      '• ${solverProvider.highPriorityCount} high priority',
-                      style: const TextStyle(
-                        color: Color(0xFFC62828),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (solverProvider.isLoading && solverProvider.tasks.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 48),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (solverProvider.errorMessage != null &&
+                    solverProvider.tasks.isEmpty)
+                  _SolverError(
+                    message: solverProvider.errorMessage!,
+                    onRetry: solverProvider.fetchTasks,
+                  )
+                else if (solverProvider.visibleTasks.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 48),
+                    child: Center(child: Text('No solver tasks found.')),
+                  )
+                else
+                  ...solverProvider.visibleTasks.map(
+                    (task) => Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: SolverTaskCard(
+                        task: task,
+                        onDetailPopped: solverProvider.fetchTasks,
+                        isUpdating: solverProvider.isUpdating(task.id),
+                        joinedTeamName: teamsProvider.membershipForReport(task.id)?.name,
+                        onJoinTeam: () => _openJoinTeam(context, task),
+                        onWorkOnThis: () => _openCreateTeam(context, task),
                       ),
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              ...solverProvider.visibleTasks.map(
-                (task) => Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: SolverTaskCard(
-                    task: task,
-                    onJoinTeam: () => _openJoinTeam(context, task),
-                    onWorkOnThis: () => _openCreateTeam(context, task),
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildCategoryFilters() {
-    final categories = [
-      (SolverCategory.all, 'All', Icons.apps),
-      (SolverCategory.infrastructure, 'Infrastructure', Icons.construction),
-      (SolverCategory.water, 'Water', Icons.water_drop),
-      (SolverCategory.electricity, 'Electricity', Icons.bolt),
-      (SolverCategory.sanitation, 'Sanitation', Icons.delete_outline),
-    ];
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: categories.map((category) {
-          final selected = solverProvider.category == category.$1;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              avatar: Icon(
-                category.$3,
-                size: 17,
-                color: selected ? Colors.white : _kBannerBlue,
-              ),
-              label: Text(category.$2),
-              selected: selected,
-              selectedColor: _kBannerBlue,
-              labelStyle: TextStyle(
-                color: selected ? Colors.white : _kInk,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-              side: BorderSide(
-                color: selected ? _kBannerBlue : const Color(0xFFD9DEEA),
-              ),
-              onSelected: (_) => solverProvider.setCategory(category.$1),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Future<void> _openJoinTeam(BuildContext context, SolverTask task) {
-    return Navigator.push<void>(
+  Future<void> _openJoinTeam(BuildContext context, SolverTask task) async {
+    final joined = await Navigator.push<bool>(
       context,
-      MaterialPageRoute<void>(builder: (_) => JoinTeamView(task: task)),
+      MaterialPageRoute<bool>(builder: (_) => JoinTeamView(task: task)),
     );
+    if (joined == true && context.mounted) {
+      await context.read<TeamsProvider>().refresh();
+    }
   }
 
   Future<void> _openCreateTeam(BuildContext context, SolverTask task) async {
@@ -136,18 +138,53 @@ class SolverView extends StatelessWidget {
       MaterialPageRoute<bool>(builder: (_) => CreateTeamView(task: task)),
     );
     if (created == true && context.mounted) {
-      solverProvider.updateStatus(task.id, TaskStatus.inProgress);
+      await context.read<TeamsProvider>().refresh();
+      await solverProvider.fetchTasks();
+      final updated = await solverProvider.updateStatus(
+        task.id,
+        TaskStatus.inProgress,
+      );
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Team created. Solver Mode started.')),
+        SnackBar(
+          content: Text(
+            updated
+                ? 'Team created. Solver Mode started.'
+                : 'Task status could not be updated.',
+          ),
+        ),
       );
     }
   }
 }
 
-class _SolverHeader extends StatelessWidget {
-  const _SolverHeader({required this.username});
+class _SolverError extends StatelessWidget {
+  const _SolverError({required this.message, required this.onRetry});
 
-  final String username;
+  final String message;
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 48),
+      child: Column(
+        children: [
+          Text(message, textAlign: TextAlign.center),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SolverHeader extends StatelessWidget {
+  const _SolverHeader();
 
   @override
   Widget build(BuildContext context) {
@@ -177,7 +214,11 @@ class _SolverHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  username,
+                  context.watch<AuthProvider>().currentUser?['name']
+                          ?.toString()
+                          .split(' ')
+                          .first ??
+                      'User',
                   style: const TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w700,

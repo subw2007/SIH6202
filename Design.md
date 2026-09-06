@@ -1,5 +1,24 @@
 # Design — Citizen Mode
 
+## Hardware and media
+
+The report composer uses native camera/gallery and microphone controls. GPS is
+shown as an editable reverse-geocoded location field. Cards render uploaded
+images and expose a real audio play/pause control while retaining the existing
+placeholder treatment when no media is attached.
+
+Microphone permission failures are shown as a snackbar without closing the
+composer. A successful camera capture displays the actual local `XFile.path`
+image; mock preview art is used only when no image is selected.
+
+Voice recordings are written to a writable `path_provider` temporary path,
+keeping the recording control usable on Android devices with read-only app
+working directories.
+
+The composer includes a video container with Record Video and Choose Video
+actions, plus Retake and Remove controls. Cards show a lightweight video player
+with a loading state and play/pause overlay whenever `video_url` is present.
+
 Visual system for the Citizen feed and report composer (SIH PS 26043). Material 3, light theme only.
 
 ## Color palette
@@ -101,3 +120,16 @@ distance/upvotes/team metadata, a two-line description, status pill, view
 details icon, Join Team outline button, and `#4A62AD` Work on This button.
 High/Critical uses `#E53935`, Medium `#FB8C00`, Low `#4CAF50`; verified status
 uses `#E8F5E9`/`#4CAF50`.
+
+## Live Solver States
+
+Solver Mode uses the same light visual system while its data is remote:
+
+- Initial load shows a centered progress indicator beneath the category row.
+- A failed initial load shows a concise error and a `Retry` action.
+- Pulling down on the task list invokes `GET /api/solver-tasks`.
+- An empty successful response shows `No solver tasks found.` rather than
+  placeholder cards.
+- Work on This disables the task actions while its PATCH is in flight and
+  shows `Saving...`; the status pill updates only after the server confirms.
+- The metrics row uses the live task count and high-priority count.

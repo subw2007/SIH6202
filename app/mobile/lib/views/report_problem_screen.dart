@@ -1,8 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
+import '../providers/citizen_feed_provider.dart';
 import '../providers/report_form_provider.dart';
+import '../screens/map_picker_screen.dart';
+import '../services/api_service.dart';
 import 'widgets/media_picker_box.dart';
+import 'widgets/video_picker_box.dart';
 import 'widgets/voice_recorder_widget.dart';
 
 const _kBlue = Color(0xFF4A62AD);
@@ -14,19 +22,103 @@ Future<void> openReportProblem(BuildContext context) {
     MaterialPageRoute<void>(
       fullscreenDialog: true,
       builder: (_) => ChangeNotifierProvider(
-        create: (_) => ReportFormProvider()..startLocationDetection(),
+        create: (_) => ReportFormProvider(
+          onReportSubmitted: context
+              .read<CitizenFeedProvider>()
+              .fetchCitizenFeed,
+        )..startLocationDetection(),
         child: const ReportProblemScreen(),
       ),
     ),
   );
 }
 
-class ReportProblemScreen extends StatelessWidget {
+class ReportProblemScreen extends StatefulWidget {
   const ReportProblemScreen({super.key});
+
+  @override
+  State<ReportProblemScreen> createState() => _ReportProblemScreenState();
+}
+
+class _ReportProblemScreenState extends State<ReportProblemScreen> {
+  final ApiService _apiService = ApiService();
+  final TextEditingController _descriptionController = TextEditingController();
+  Timer? _categorizationTimer;
+  int _categorizationRequest = 0;
+  int _summaryRequest = 0;
+  String? _pendingSummary;
+
+  void _scheduleCategorization(String description) {
+    _categorizationTimer?.cancel();
+    final trimmed = description.trim();
+    if (trimmed.length <= 10) return;
+
+    final requestId = ++_categorizationRequest;
+    _categorizationTimer = Timer(const Duration(milliseconds: 600), () async {
+      try {
+        final category = await _apiService.categorizeText(trimmed);
+        if (!mounted || requestId != _categorizationRequest) return;
+        context.read<ReportFormProvider>().setCategory(category);
+      } catch (_) {}
+    });
+  }
+
+  Future<void> _handleVoiceRecording(String audioPath) async {
+    String transcript;
+    try {
+      transcript = (await _apiService.transcribeAudio(XFile(audioPath))).trim();
+    } catch (_) {
+      return;
+    }
+    if (transcript.isEmpty) return;
+    if (!mounted) return;
+
+    final form = context.read<ReportFormProvider>();
+    _descriptionController.value = TextEditingValue(
+      text: transcript,
+      selection: TextSelection.collapsed(offset: transcript.length),
+    );
+    form.setTitle(transcript);
+
+    try {
+      await form.categorizeText(transcript);
+    } catch (_) {}
+
+    final requestId = ++_summaryRequest;
+    try {
+      final summary = await _apiService.summarizeText(transcript);
+      if (!mounted || requestId != _summaryRequest) return;
+      setState(() => _pendingSummary = summary);
+    } catch (_) {}
+  }
+
+  void _applySummary() {
+    final summary = _pendingSummary;
+    if (summary == null || summary.trim().isEmpty) return;
+    final refined = summary.trim();
+    _descriptionController.value = TextEditingValue(
+      text: refined,
+      selection: TextSelection.collapsed(offset: refined.length),
+    );
+    context.read<ReportFormProvider>().setTitle(refined);
+    setState(() => _pendingSummary = null);
+    _scheduleCategorization(refined);
+  }
 
   @override
   Widget build(BuildContext context) {
     final form = context.watch<ReportFormProvider>();
+    final errorMessage = form.errorMessage;
+    if (errorMessage != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        final message = form.consumeErrorMessage();
+        if (message == null) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(message)));
+      });
+    }
 
     return Scaffold(
       backgroundColor: _kPage,
@@ -52,7 +144,11 @@ class ReportProblemScreen extends StatelessWidget {
                   IconButton(
                     tooltip: 'Close',
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded, size: 28, color: _kInk),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      size: 28,
+                      color: _kInk,
+                    ),
                   ),
                 ],
               ),
@@ -65,26 +161,47 @@ class ReportProblemScreen extends StatelessWidget {
                   const SizedBox(height: 8),
                   MediaPickerBox(
                     hasImage: form.hasImage,
+                    imageFile: form.imageFile,
                     hint: form.imageHint,
                     onPick: form.pickImage,
                     onClear: form.clearImage,
                   ),
                   const SizedBox(height: 28),
+                  const _SectionLabel('Video'),
+                  const SizedBox(height: 8),
+                  VideoPickerBox(
+                    videoFile: form.videoFile,
+                    onPick: form.pickVideo,
+                    onClear: form.clearVideo,
+                  ),
+                  const SizedBox(height: 28),
                   const _SectionLabel('Voice note'),
                   const SizedBox(height: 16),
-                  const VoiceRecorderWidget(),
+                  VoiceRecorderWidget(
+                    onRecordingFinished: _handleVoiceRecording,
+                  ),
                   const SizedBox(height: 28),
                   const _SectionLabel('What is the issue?'),
                   const SizedBox(height: 8),
                   TextField(
+                    controller: _descriptionController,
                     textInputAction: TextInputAction.done,
-                    onChanged: form.setTitle,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                    onChanged: (value) {
+                      form.setTitle(value);
+                      _scheduleCategorization(value);
+                    },
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
                     decoration: InputDecoration(
                       hintText: 'What is the issue?',
                       filled: true,
                       fillColor: Colors.white,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 16,
+                      ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
                         borderSide: const BorderSide(color: Color(0xFFD9DEEA)),
@@ -99,10 +216,54 @@ class ReportProblemScreen extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (_pendingSummary != null) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: _applySummary,
+                        icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+                        label: const Text('Magic Refine'),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 16),
-                  _LocationPill(
-                    label: form.locationLabel,
-                    detecting: form.locationState == LocationDetectState.detecting,
+                  DropdownButtonFormField<String>(
+                    initialValue: form.category,
+                    onChanged: (value) {
+                      if (value != null) form.setCategory(value);
+                    },
+                    decoration: InputDecoration(
+                      labelText: 'Category',
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 16,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(color: Color(0xFFD9DEEA)),
+                      ),
+                    ),
+                    items: ReportFormProvider.categories
+                        .map(
+                          (category) => DropdownMenuItem(
+                            value: category,
+                            child: Text(category),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                  const SizedBox(height: 16),
+                  GestureDetector(
+                    onTap: () => _openMapPicker(context, form),
+                    child: _LocationPill(
+                      label: form.locationLabel,
+                      detecting:
+                          form.locationState == LocationDetectState.detecting,
+                      onChanged: form.setLocationLabel,
+                    ),
                   ),
                 ],
               ),
@@ -117,14 +278,22 @@ class ReportProblemScreen extends StatelessWidget {
                   style: FilledButton.styleFrom(
                     backgroundColor: _kBlue,
                     disabledBackgroundColor: const Color(0xFFB7C0D8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   child: form.isSubmitting
                       ? const SizedBox(
                           width: 22,
                           height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.4,
+                            color: Colors.white,
+                          ),
                         )
                       : const Text('🚀 Submit Report'),
                 ),
@@ -134,6 +303,14 @@ class ReportProblemScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _categorizationTimer?.cancel();
+    _descriptionController.dispose();
+    _apiService.dispose();
+    super.dispose();
   }
 
   Future<void> _submit(BuildContext context) async {
@@ -146,12 +323,18 @@ class ReportProblemScreen extends StatelessWidget {
       barrierDismissible: false,
       builder: (dialogContext) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           contentPadding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
           content: const Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.check_circle_rounded, color: Color(0xFF4CAF50), size: 64),
+              Icon(
+                Icons.check_circle_rounded,
+                color: Color(0xFF4CAF50),
+                size: 64,
+              ),
               SizedBox(height: 16),
               Text(
                 'Report Submitted Successfully!',
@@ -178,6 +361,28 @@ class ReportProblemScreen extends StatelessWidget {
 
     if (context.mounted) Navigator.of(context).pop();
   }
+
+  Future<void> _openMapPicker(
+    BuildContext context,
+    ReportFormProvider form,
+  ) async {
+    final result = await Navigator.of(context).push<MapPickerResult>(
+      MaterialPageRoute(
+        builder: (_) => MapPickerScreen(
+          initialPoint: LatLng(
+            form.latitude ?? 20.5937,
+            form.longitude ?? 78.9629,
+          ),
+        ),
+      ),
+    );
+    if (result == null || !context.mounted) return;
+    form.setSelectedLocation(
+      latitude: result.point.latitude,
+      longitude: result.point.longitude,
+      label: result.address,
+    );
+  }
 }
 
 class _SectionLabel extends StatelessWidget {
@@ -200,10 +405,15 @@ class _SectionLabel extends StatelessWidget {
 }
 
 class _LocationPill extends StatelessWidget {
-  const _LocationPill({required this.label, required this.detecting});
+  const _LocationPill({
+    required this.label,
+    required this.detecting,
+    required this.onChanged,
+  });
 
   final String label;
   final bool detecting;
+  final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -219,12 +429,16 @@ class _LocationPill extends StatelessWidget {
           const Icon(Icons.location_on_rounded, color: _kBlue, size: 22),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              label,
+            child: TextField(
+              controller: TextEditingController(text: label),
+              onChanged: onChanged,
               style: const TextStyle(
                 fontSize: 14.5,
                 fontWeight: FontWeight.w600,
                 color: _kInk,
+              ),
+              decoration: const InputDecoration.collapsed(
+                hintText: 'Location name',
               ),
             ),
           ),

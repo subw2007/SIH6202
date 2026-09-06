@@ -1,0 +1,4 @@
+node-gateway/node_modules/
+node-gateway/data/*.db
+python-ml/venv/
+python-ml/__pycache__/

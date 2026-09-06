@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../providers/user_mode_provider.dart';
+import '../providers/auth_provider.dart';
+import '../providers/citizen_feed_provider.dart';
+import '../services/api_service.dart';
 import 'report_problem_screen.dart';
+import 'widgets/feed_filter_bar.dart';
 import 'widgets/citizen_problem_card.dart';
 import 'widgets/settings_bottom_sheet.dart';
 
@@ -10,86 +13,63 @@ const _kBannerBlue = Color(0xFF4A62AD);
 const _kPageBg = Color(0xFFF4F6FB);
 const _kInk = Color(0xFF1C2333);
 
-/// Mock local-area feed. Replace with FastAPI list endpoint in the next pass.
-const citizenFeedMock = <CitizenProblemPost>[
-  CitizenProblemPost(
-    id: 'rpt_001',
-    title: 'Deep pothole causing accidents',
-    location: 'Location',
-    timeAgo: '2h ago',
-    upvoteCount: 14,
-    audioDuration: '0:20',
-    isVerified: true,
-  ),
-  CitizenProblemPost(
-    id: 'rpt_002',
-    title: 'Broken streetlight on main road',
-    location: 'MG Road',
-    timeAgo: '5h ago',
-    upvoteCount: 9,
-    audioDuration: '0:12',
-    isVerified: true,
-  ),
-  CitizenProblemPost(
-    id: 'rpt_003',
-    title: 'Overflowing drain after rainfall',
-    location: 'Ward 12',
-    timeAgo: '1d ago',
-    upvoteCount: 21,
-    audioDuration: '0:31',
-    isVerified: false,
-  ),
-  CitizenProblemPost(
-    id: 'rpt_004',
-    title: 'Garbage pile near community park',
-    location: 'Sector 4',
-    timeAgo: '1d ago',
-    upvoteCount: 6,
-    audioDuration: '0:08',
-    isVerified: true,
-  ),
-  CitizenProblemPost(
-    id: 'rpt_005',
-    title: 'Open manhole without barricade',
-    location: 'Bus stand',
-    timeAgo: '2d ago',
-    upvoteCount: 33,
-    audioDuration: '0:18',
-    isVerified: true,
-  ),
-];
-
-class CitizenView extends StatelessWidget {
+class CitizenView extends StatefulWidget {
   const CitizenView({super.key});
 
   @override
+  State<CitizenView> createState() => _CitizenViewState();
+}
+
+class _CitizenViewState extends State<CitizenView> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<CitizenFeedProvider>().fetchCitizenFeed();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final mode = context.watch<UserModeProvider>();
+    final feed = context.watch<CitizenFeedProvider>();
 
     return Scaffold(
       backgroundColor: _kPageBg,
       body: SafeArea(
         child: Stack(
           children: [
-            CustomScrollView(
-              slivers: [
-                SliverToBoxAdapter(
-                  child: _CitizenHeader(username: mode.username),
-                ),
-                const SliverToBoxAdapter(child: _ReportBanner()),
-                const SliverToBoxAdapter(child: _FeedHeader()),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 108),
-                  sliver: SliverList.separated(
-                    itemCount: citizenFeedMock.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(height: 16),
-                    itemBuilder: (context, index) {
-                      return CitizenProblemCard(post: citizenFeedMock[index]);
-                    },
+            RefreshIndicator(
+              onRefresh: feed.fetchCitizenFeed,
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: const _CitizenHeader(),
                   ),
-                ),
-              ],
+                  const SliverToBoxAdapter(child: _ReportBanner()),
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: _FilterHeaderDelegate(
+                      child: FeedFilterBar(
+                        city: 'All',
+                        category: 'All',
+                        severity: 'All',
+                        margin: const EdgeInsets.symmetric(horizontal: 20),
+                        onChanged: (city, category, severity) =>
+                            feed.fetchCitizenFeed(
+                              city: city,
+                              category: category,
+                              severity: severity,
+                            ),
+                      ),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: _FeedHeader(reportCount: feed.reports.length),
+                  ),
+                  _buildFeed(feed),
+                ],
+              ),
             ),
             const Align(
               alignment: Alignment.bottomCenter,
@@ -100,27 +80,156 @@ class CitizenView extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildFeed(CitizenFeedProvider feed) {
+    if (feed.isLoading && feed.reports.isEmpty) {
+      return const SliverFillRemaining(
+        hasScrollBody: false,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (feed.errorMessage != null && feed.reports.isEmpty) {
+      return SliverFillRemaining(
+        hasScrollBody: false,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(feed.errorMessage!, textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: feed.fetchCitizenFeed,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    if (feed.reports.isEmpty) {
+      return const SliverFillRemaining(
+        hasScrollBody: false,
+        child: Center(child: Text('No reports in your area yet.')),
+      );
+    }
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 108),
+      sliver: SliverList.separated(
+        itemCount: feed.reports.length,
+        separatorBuilder: (context, index) => const SizedBox(height: 16),
+        itemBuilder: (context, index) =>
+            CitizenProblemCard(
+              post: _postFromReport(feed.reports[index]),
+              onDetailPopped: feed.fetchCitizenFeed,
+            ),
+      ),
+    );
+  }
+
+  CitizenProblemPost _postFromReport(Map<String, dynamic> report) {
+    final latitude = report['latitude'];
+    final longitude = report['longitude'];
+    final location =
+        report['location_name']?.toString() ??
+        (latitude != null && longitude != null
+            ? '$latitude, $longitude'
+            : 'Location unavailable');
+    final createdAt = DateTime.tryParse(report['created_at']?.toString() ?? '');
+    final timeAgo = createdAt == null ? 'Just now' : _timeAgo(createdAt);
+    final durationMs = report['audio_duration_ms'] as num?;
+    final seconds = durationMs == null ? 0 : (durationMs / 1000).round();
+    final metadata = report['ai_metadata'];
+    final priority = report['priority']?.toString();
+    final category =
+        report['category']?.toString() ??
+        (metadata is Map ? metadata['category']?.toString() : null) ??
+        'Report';
+    final severity =
+        report['severity']?.toString() ??
+        (metadata is Map ? metadata['severity']?.toString() : null) ??
+        priority ??
+        'MEDIUM';
+    return CitizenProblemPost(
+      id:
+          report['id']?.toString() ??
+          'report-${createdAt?.millisecondsSinceEpoch ?? 0}',
+      title: report['title']?.toString().trim().isNotEmpty == true
+          ? report['title'].toString()
+          : 'Untitled report',
+      category: category,
+      severity: severity,
+      location: location,
+      timeAgo: timeAgo,
+      upvoteCount: 0,
+      audioDuration:
+          '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}',
+      isVerified:
+          priority == 'high' ||
+          metadata is Map && metadata['severity'] == 'high',
+      imageUrl: ApiService.resolveMediaUrl(report['image_url']?.toString()),
+      audioUrl: ApiService.resolveMediaUrl(report['audio_url']?.toString()),
+      videoUrl: ApiService.resolveMediaUrl(report['video_url']?.toString()),
+      audioTranscript: report['audio_transcript']?.toString(),
+      translatedText: report['translated_text']?.toString(),
+      description: report['description']?.toString(),
+      createdAt: createdAt,
+        authorName: report['author_name']?.toString() ??
+          report['user_name']?.toString() ??
+          'Citizen',
+      locationName: location,
+      commentCount: report['comment_count'] is num
+          ? (report['comment_count'] as num).toInt()
+          : report['comments'] is List
+          ? (report['comments'] as List).length
+          : 0,
+    );
+  }
+
+  String _timeAgo(DateTime createdAt) {
+    final difference = DateTime.now().difference(createdAt.toLocal());
+    if (difference.inMinutes < 1) return 'Just now';
+    if (difference.inHours < 1) return '${difference.inMinutes}m ago';
+    if (difference.inDays < 1) return '${difference.inHours}h ago';
+    return '${difference.inDays}d ago';
+  }
+}
+
+class _FilterHeaderDelegate extends SliverPersistentHeaderDelegate {
+  const _FilterHeaderDelegate({required this.child});
+
+  final Widget child;
+
+  @override
+  double get minExtent => 95;
+
+  @override
+  double get maxExtent => 95;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) => child;
+
+  @override
+  bool shouldRebuild(covariant _FilterHeaderDelegate oldDelegate) => false;
 }
 
 class _CitizenHeader extends StatelessWidget {
-  const _CitizenHeader({required this.username});
-
-  final String username;
+  const _CitizenHeader();
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      margin: const EdgeInsets.fromLTRB(20, 8, 20, 8),
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
         ],
       ),
       child: Row(
@@ -136,7 +245,11 @@ class _CitizenHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  username,
+                  context.watch<AuthProvider>().currentUser?['name']
+                          ?.toString()
+                          .split(' ')
+                          .first ??
+                      'User',
                   style: const TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w700,
@@ -224,11 +337,13 @@ class _ReportBanner extends StatelessWidget {
 }
 
 class _FeedHeader extends StatelessWidget {
-  const _FeedHeader();
+  const _FeedHeader({required this.reportCount});
+
+  final int reportCount;
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
+    return Padding(
       padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
       child: Row(
         children: [
@@ -243,7 +358,7 @@ class _FeedHeader extends StatelessWidget {
             ),
           ),
           Text(
-            '5 reports',
+            '$reportCount reports',
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w500,
@@ -265,7 +380,7 @@ class _ReportProblemFab extends StatelessWidget {
       minimum: const EdgeInsets.only(bottom: 16),
       child: Material(
         color: _kBannerBlue,
-        elevation: 8,
+        elevation: 4,
         shadowColor: const Color(0x664A62AD),
         borderRadius: BorderRadius.circular(32),
         child: InkWell(

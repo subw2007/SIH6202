@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../providers/solver_provider.dart';
+import '../../screens/problem_detail_screen.dart';
+import 'citizen_problem_card.dart';
 import 'priority_badge.dart';
+import 'video_player_widget.dart';
 
 const _kSurface = Color(0xFFFFFFFF);
 const _kInk = Color(0xFF1C2333);
@@ -18,12 +21,18 @@ class SolverTaskCard extends StatelessWidget {
     required this.task,
     required this.onWorkOnThis,
     required this.onJoinTeam,
+    this.onDetailPopped,
+    this.isUpdating = false,
+    this.joinedTeamName,
     super.key,
   });
 
   final SolverTask task;
   final VoidCallback onWorkOnThis;
   final VoidCallback onJoinTeam;
+  final Future<void> Function()? onDetailPopped;
+  final bool isUpdating;
+  final String? joinedTeamName;
 
   Color get _priorityColor => task.priority == TaskPriority.medium
       ? _kMedium
@@ -61,148 +70,281 @@ class SolverTaskCard extends StatelessWidget {
     }
   }
 
+  Future<void> _openDetails(BuildContext context) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => ProblemDetailScreen(post: _detailPost),
+      ),
+    );
+    if (context.mounted) await onDetailPopped?.call();
+  }
+
   @override
   Widget build(BuildContext context) {
     final isResolved = task.status == TaskStatus.resolved;
     final statusColor = isResolved ? _kVerified : _kBannerBlue;
     final statusWash = isResolved ? _kVerifiedWash : const Color(0xFFE8EEFA);
-    return Card(
-      margin: EdgeInsets.zero,
-      color: _kSurface,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: _priorityColor.withValues(alpha: .42)),
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
+        ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      child: Card(
+        margin: EdgeInsets.zero,
+        color: _kSurface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: _priorityColor.withValues(alpha: .42)),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => _openDetails(context),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _Thumbnail(color: _priorityColor),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _Thumbnail(color: _priorityColor, imageUrl: task.imageUrl),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          PriorityBadge(priority: task.priority),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Row(
-                              children: [
-                                Icon(
-                                  _categoryIcon,
-                                  size: 15,
-                                  color: _kMutedMeta,
-                                ),
-                                const SizedBox(width: 4),
-                                Flexible(
-                                  child: Text(
-                                    _categoryLabel,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: _kSecondaryText,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
+                          Row(
+                            children: [
+                              PriorityBadge(priority: task.priority),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      _categoryIcon,
+                                      size: 15,
+                                      color: _kMutedMeta,
                                     ),
-                                  ),
+                                    const SizedBox(width: 4),
+                                    Flexible(
+                                      child: Text(
+                                        _categoryLabel,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: _kSecondaryText,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 9),
+                          Text(
+                            task.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: _kInk,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              height: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 7),
+                          Text(
+                            task.timestamp,
+                            style: const TextStyle(
+                              color: _kMutedMeta,
+                              fontSize: 12,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 9),
-                      Text(
-                        task.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: _kInk,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          height: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 7),
-                      Text(
-                        task.timestamp,
-                        style: const TextStyle(
-                          color: _kMutedMeta,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Text(
-              task.description,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: _kSecondaryText,
-                fontSize: 13,
-                height: 1.35,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 12,
-              runSpacing: 6,
-              children: [
-                _Meta(icon: Icons.location_on_outlined, text: task.distance),
-                _Meta(
-                  icon: Icons.person_outline,
-                  text: '${task.teamCount} teams',
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                _StatusPill(
-                  label: isResolved ? 'Verified' : 'In Progress',
-                  color: statusColor,
-                  background: statusWash,
-                ),
-                const Spacer(),
-                OutlinedButton(
-                  onPressed: isResolved ? null : onJoinTeam,
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 38),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    side: const BorderSide(color: _kBannerBlue),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
                     ),
-                  ),
-                  child: const Text('Join Team'),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  onPressed: isResolved ? null : onWorkOnThis,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _kBannerBlue,
-                    minimumSize: const Size(0, 38),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
+                const SizedBox(height: 14),
+                if (task.videoUrl != null && task.videoUrl!.isNotEmpty)
+                  VideoPlayerWidget(source: task.videoUrl!, height: 168),
+                if (task.videoUrl != null && task.videoUrl!.isNotEmpty)
+                  const SizedBox(height: 12),
+                Text(
+                  task.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: _kSecondaryText,
+                    fontSize: 13,
+                    height: 1.35,
                   ),
-                  icon: const Icon(Icons.build_outlined, size: 16),
-                  label: Text(isResolved ? 'Done' : 'Work on This'),
+                ),
+                const SizedBox(height: 12),
+                if (task.audioUrl != null && task.audioUrl!.isNotEmpty)
+                  const _VoiceNoteBadge(),
+                if (task.audioUrl != null && task.audioUrl!.isNotEmpty)
+                  const SizedBox(height: 12),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 6,
+                  children: [
+                    _Meta(
+                      icon: Icons.location_on_outlined,
+                      text: task.distance,
+                    ),
+                    _CommentPill(count: task.commentCount),
+                    _Meta(
+                      icon: Icons.person_outline,
+                      text: '${task.teamCount} teams',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    _StatusPill(
+                      label: isResolved ? 'Verified' : 'In Progress',
+                      color: statusColor,
+                      background: statusWash,
+                    ),
+                    const SizedBox(width: 8),
+                    if (joinedTeamName != null)
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade50,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '• Joined: $joinedTeamName',
+                            style: TextStyle(
+                              color: Colors.green.shade700,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                            softWrap: false,
+                          ),
+                        ),
+                      )
+                    else
+                      ...[
+                        OutlinedButton(
+                          onPressed: isResolved || isUpdating
+                              ? null
+                              : onJoinTeam,
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(0, 38),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            side: const BorderSide(color: _kBannerBlue),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                          child: const Text('Join Team'),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton.icon(
+                          onPressed: isResolved || isUpdating
+                              ? null
+                              : onWorkOnThis,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _kBannerBlue,
+                            minimumSize: const Size(0, 38),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                          icon: const Icon(Icons.build_outlined, size: 16),
+                          label: Text(
+                            isUpdating
+                                ? 'Saving...'
+                                : isResolved
+                                ? 'Done'
+                                : 'Work on This',
+                          ),
+                        ),
+                      ],
+                  ],
                 ),
               ],
             ),
-          ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  CitizenProblemPost get _detailPost => CitizenProblemPost(
+    id: task.id,
+    title: task.title,
+    location: task.location,
+    locationName: task.location,
+    timeAgo: task.timestamp,
+    upvoteCount: task.upvotes,
+    audioDuration: 'Audio note',
+    isVerified: task.status == TaskStatus.resolved,
+    imageUrl: task.imageUrl,
+    audioUrl: task.audioUrl,
+    videoUrl: task.videoUrl,
+    description: task.description,
+    commentCount: task.commentCount,
+  );
+}
+
+class _CommentPill extends StatelessWidget {
+  const _CommentPill({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3F5FA),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Text(
+        '💬 $count',
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF2D3A5F),
+        ),
+      ),
+    );
+  }
+}
+
+class _VoiceNoteBadge extends StatelessWidget {
+  const _VoiceNoteBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEEF1F8),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: const Text(
+        '🔊 Voice Note',
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF4A5568),
         ),
       ),
     );
@@ -210,9 +352,10 @@ class SolverTaskCard extends StatelessWidget {
 }
 
 class _Thumbnail extends StatelessWidget {
-  const _Thumbnail({required this.color});
+  const _Thumbnail({required this.color, this.imageUrl});
 
   final Color color;
+  final String? imageUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -227,11 +370,14 @@ class _Thumbnail extends StatelessWidget {
           end: Alignment.bottomRight,
         ),
       ),
-      child: Icon(
-        Icons.landscape_outlined,
-        color: Colors.white.withValues(alpha: .9),
-        size: 34,
-      ),
+      clipBehavior: Clip.antiAlias,
+      child: imageUrl != null && imageUrl!.isNotEmpty
+          ? Image.network(imageUrl!, fit: BoxFit.cover)
+          : Icon(
+              Icons.landscape_outlined,
+              color: Colors.white.withValues(alpha: .9),
+              size: 34,
+            ),
     );
   }
 }

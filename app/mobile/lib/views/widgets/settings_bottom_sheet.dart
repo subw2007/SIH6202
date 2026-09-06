@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../providers/auth_provider.dart';
 import '../../providers/user_mode_provider.dart';
 
 const _kBannerBlue = Color(0xFF4A62AD);
@@ -12,8 +13,19 @@ class SettingsBottomSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<UserModeProvider>();
-    final isCitizen = provider.isCitizenMode;
+    final authProvider = context.watch<AuthProvider>();
+    final currentUser = authProvider.currentUser;
+    final profileName = currentUser?['name']?.toString() ?? 'Profile Details';
+    final role = currentUser?['role']?.toString();
+    final profileRole = role == 'solver'
+        ? 'Official'
+        : role == 'citizen'
+        ? 'Citizen'
+        : role ?? 'User';
+    final profileEmail = currentUser?['email']?.toString();
+    final profileDetails = profileEmail == null || profileEmail.isEmpty
+        ? profileRole
+        : '$profileRole • $profileEmail';
 
     return SafeArea(
       top: false,
@@ -64,42 +76,26 @@ class SettingsBottomSheet extends StatelessWidget {
                 onTap: () => Navigator.pop(context),
               ),
               const Divider(height: 16),
-              StatefulBuilder(
-                builder: (context, setState) {
-                  var notificationsEnabled = true;
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
-                      Icons.notifications_outlined,
-                      color: _kBannerBlue,
-                    ),
-                    title: const Text('Notification Preferences'),
-                    trailing: Switch(
-                      value: notificationsEnabled,
-                      onChanged: (value) {
-                        setState(() => notificationsEnabled = value);
-                      },
-                    ),
-                  );
-                },
-              ),
-              const Divider(height: 16),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.badge_outlined, color: _kBannerBlue),
-                title: Text(
-                  isCitizen
-                      ? 'Account / Citizen Profile'
-                      : 'Account / Officer Profile',
-                ),
-                subtitle: Text(
-                  isCitizen ? 'Registered Citizen' : 'Officer ID: SOL-2024-001',
-                ),
+                title: Text(profileName),
+                subtitle: Text(profileDetails),
                 trailing: const Icon(
                   Icons.chevron_right,
                   color: _kSecondaryText,
                 ),
                 onTap: () => Navigator.pop(context),
+              ),
+              const Divider(height: 16),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.logout, color: Colors.red),
+                title: const Text('Logout'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await authProvider.logout();
+                },
               ),
             ],
           ),

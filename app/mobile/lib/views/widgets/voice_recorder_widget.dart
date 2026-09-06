@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,7 +7,9 @@ import '../../providers/report_form_provider.dart';
 
 /// Large-target mic control with waveform + timer. Hold or tap to record.
 class VoiceRecorderWidget extends StatefulWidget {
-  const VoiceRecorderWidget({super.key});
+  const VoiceRecorderWidget({super.key, this.onRecordingFinished});
+
+  final Future<void> Function(String audioPath)? onRecordingFinished;
 
   @override
   State<VoiceRecorderWidget> createState() => _VoiceRecorderWidgetState();
@@ -40,6 +44,14 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
     }
   }
 
+  Future<void> _finishRecording(ReportFormProvider form) async {
+    await form.stopRecording();
+    if (form.voicePhase == VoiceNotePhase.recorded &&
+        form.recordedAudioPath != null) {
+      await widget.onRecordingFinished?.call(form.recordedAudioPath!);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final form = context.watch<ReportFormProvider>();
@@ -48,7 +60,8 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
     });
 
     final recording = form.voicePhase == VoiceNotePhase.recording;
-    final recorded = form.voicePhase == VoiceNotePhase.recorded ||
+    final recorded =
+        form.voicePhase == VoiceNotePhase.recorded ||
         form.voicePhase == VoiceNotePhase.playing;
 
     return Column(
@@ -57,7 +70,7 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
           onTap: () {
             if (_held) return;
             if (form.voicePhase == VoiceNotePhase.recording) {
-              form.stopRecording();
+              unawaited(_finishRecording(form));
             } else if (form.voicePhase == VoiceNotePhase.idle) {
               form.startRecording();
             }
@@ -69,7 +82,7 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
             }
           },
           onLongPressEnd: (_) {
-            form.stopRecording();
+            unawaited(_finishRecording(form));
             Future<void>.delayed(const Duration(milliseconds: 80), () {
               if (mounted) _held = false;
             });
@@ -79,12 +92,17 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
             width: 96,
             height: 96,
             decoration: BoxDecoration(
-              color: recording ? const Color(0xFFC62828) : const Color(0xFF4A62AD),
+              color: recording
+                  ? const Color(0xFFC62828)
+                  : const Color(0xFF4A62AD),
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: (recording ? const Color(0xFFC62828) : const Color(0xFF4A62AD))
-                      .withValues(alpha: 0.35),
+                  color:
+                      (recording
+                              ? const Color(0xFFC62828)
+                              : const Color(0xFF4A62AD))
+                          .withValues(alpha: 0.35),
                   blurRadius: 18,
                   offset: const Offset(0, 8),
                 ),
@@ -102,8 +120,8 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
           recorded
               ? 'Voice note ready'
               : recording
-                  ? 'Recording… tap or release to stop'
-                  : 'Hold or Tap to Record Description',
+              ? 'Recording… tap or release to stop'
+              : 'Hold or Tap to Record Description',
           textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: 15,
@@ -156,7 +174,11 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
                         ? Icons.pause_rounded
                         : Icons.play_arrow_rounded,
                   ),
-                  label: Text(form.voicePhase == VoiceNotePhase.playing ? 'Pause' : 'Play'),
+                  label: Text(
+                    form.voicePhase == VoiceNotePhase.playing
+                        ? 'Pause'
+                        : 'Play',
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -182,11 +204,7 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
 }
 
 class _LiveWavePainter extends CustomPainter {
-  _LiveWavePainter({
-    required this.t,
-    required this.hot,
-    this.muted = false,
-  });
+  _LiveWavePainter({required this.t, required this.hot, this.muted = false});
 
   final double t;
   final bool hot;
@@ -198,8 +216,8 @@ class _LiveWavePainter extends CustomPainter {
       ..color = muted
           ? const Color(0xFFC5CCDA)
           : hot
-              ? const Color(0xFFC62828)
-              : const Color(0xFF4A62AD)
+          ? const Color(0xFFC62828)
+          : const Color(0xFF4A62AD)
       ..strokeCap = StrokeCap.round
       ..strokeWidth = 3.2;
 
@@ -207,8 +225,11 @@ class _LiveWavePainter extends CustomPainter {
     final gap = size.width / bars;
     for (var i = 0; i < bars; i++) {
       final phase = (i / bars) + t;
-      final wave = (1 + (i.isEven ? 1 : -1) * (0.35 + 0.65 * (0.5 + 0.5 * _sinApprox(phase * 6.28))))
-          .clamp(0.2, 1.0);
+      final wave =
+          (1 +
+                  (i.isEven ? 1 : -1) *
+                      (0.35 + 0.65 * (0.5 + 0.5 * _sinApprox(phase * 6.28))))
+              .clamp(0.2, 1.0);
       final h = muted ? size.height * 0.22 : size.height * (0.25 + 0.7 * wave);
       final x = gap * i + gap / 2;
       final y1 = (size.height - h) / 2;
@@ -224,6 +245,8 @@ class _LiveWavePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _LiveWavePainter oldDelegate) {
-    return oldDelegate.t != t || oldDelegate.hot != hot || oldDelegate.muted != muted;
+    return oldDelegate.t != t ||
+        oldDelegate.hot != hot ||
+        oldDelegate.muted != muted;
   }
 }

@@ -1,31 +1,52 @@
 import 'package:flutter/material.dart';
 
 import '../providers/solver_provider.dart';
+import '../services/api_service.dart';
 
 const _kBlue = Color(0xFF4A62AD);
 const _kInk = Color(0xFF1C2333);
 const _kSecondary = Color(0xFF6B7280);
 
-class JoinTeamView extends StatelessWidget {
+class JoinTeamView extends StatefulWidget {
   const JoinTeamView({required this.task, super.key});
 
   final SolverTask task;
 
-  static const teams = [
-    (
-      name: 'Team CyberNode',
-      college: 'IIT Delhi',
-      members: 5,
-      lead: 'Aarav Sharma',
-    ),
-    (name: 'EcoSolvers', college: 'DTU', members: 4, lead: 'Ananya Rao'),
-    (
-      name: 'Resilient Rural',
-      college: 'NIT Surathkal',
-      members: 6,
-      lead: 'Vikram Singh',
-    ),
-  ];
+  @override
+  State<JoinTeamView> createState() => _JoinTeamViewState();
+}
+
+class _JoinTeamViewState extends State<JoinTeamView> {
+  final _apiService = ApiService();
+  List<Map<String, dynamic>> _teams = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTeams();
+  }
+
+  Future<void> _loadTeams() async {
+    try {
+      final teams = await _apiService.fetchTeams(widget.task.id);
+      if (mounted) setState(() => _teams = teams);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to load teams.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _apiService.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +56,7 @@ class JoinTeamView extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         children: [
           Text(
-            task.title,
+            widget.task.title,
             style: const TextStyle(
               color: _kInk,
               fontSize: 20,
@@ -48,26 +69,47 @@ class JoinTeamView extends StatelessWidget {
             style: TextStyle(color: _kSecondary),
           ),
           const SizedBox(height: 20),
-          ...teams.map(
-            (team) => _TeamCard(
-              team: team,
-              onRequest: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Request sent to ${team.name}.')),
-                );
-              },
+          if (_isLoading)
+            const Center(child: CircularProgressIndicator())
+          else if (_teams.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 40),
+              child: Center(child: Text('No teams have been created for this issue yet.')),
+            )
+          else
+            ..._teams.map(
+              (team) => _TeamCard(
+                team: team,
+                onRequest: () => _joinTeam(team),
+              ),
             ),
-          ),
         ],
       ),
     );
+  }
+
+  Future<void> _joinTeam(Map<String, dynamic> team) async {
+    try {
+      await _apiService.joinTeam(team['id'].toString());
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Joined ${team['name']}.')),
+      );
+      Navigator.pop(context, true);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to join team. Please try again.')),
+        );
+      }
+    }
   }
 }
 
 class _TeamCard extends StatelessWidget {
   const _TeamCard({required this.team, required this.onRequest});
 
-  final ({String name, String college, int members, String lead}) team;
+  final Map<String, dynamic> team;
   final VoidCallback onRequest;
 
   @override
@@ -86,7 +128,7 @@ class _TeamCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '${team.name} • ${team.college}',
+              '${team['name']} • ${team['institution']}',
               style: const TextStyle(
                 color: _kInk,
                 fontSize: 16,
@@ -94,7 +136,7 @@ class _TeamCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            Text('${team.members} members  •  Lead: ${team.lead}'),
+            Text('${team['member_count']} members  •  Lead: ${team['lead_name']}'),
             const SizedBox(height: 12),
             Align(
               alignment: Alignment.centerRight,

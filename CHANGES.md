@@ -1,5 +1,24 @@
 # CHANGES
 
+- Phase 3A complete: Implemented local LLM (Ollama llama3.2:1b) report auto-categorization endpoint with keyword fallback and debounced Flutter UI pre-fill.
+- Enhanced Phase 3A: Added local LLM auto-summary generation from raw transcripts.
+
+- Phase 2 complete: Added feed filter bar, backend SQL query filtering, and interactive MapPickerScreen.
+
+- Phase 1 complete: Standardized 6 categories, cleaned feed cards, added ProblemDetailScreen.
+- Phase 1 Bugfixes: Fixed audio playback in details view, added location card & comments section, updated upvote icon to comments pill, removed audio waveform from Solver cards, and enabled Solver card navigation to detailed view.
+
+## Local media and sensor integration (2026-09-05)
+
+- Replaced mock camera and microphone behavior with `image_picker`, `record`, and `audioplayers`.
+- Added GPS capture with `geolocator`, reverse geocoding with `geocoding`, and editable location names.
+- Added multipart uploads before report submission and real image/audio playback in Citizen and Solver cards.
+- Added gateway-backed `location_name`, `image_url`, `video_url`, and `audio_url` report fields.
+- Added guarded runtime microphone permission checks with snackbar feedback when recording cannot start.
+- Normalized camera captures through the real `XFile.path` and rendered the selected local image in the form preview.
+- Added `path_provider` temporary-directory resolution so audio recordings use an absolute writable path and log startup failures safely.
+- Added camera video capture/gallery selection, `video_url` uploads, and play/pause video previews in Citizen and Solver cards.
+
 ## Created files (`app/mobile/lib/`)
 
 ### Citizen feed (previous)
@@ -131,3 +150,16 @@ Photo and mic are **UI mocks** (no `image_picker` / recorder plugins yet).
 ## NEXT step
 
 **Build Solver Mode View & Priority Feed** — municipal/solver inbox with severity ranking, claim/assign actions, and a priority-sorted problem list. After that: FastAPI `POST /reports` multipart (image + audio + title + lat/lng), Bhashini STT, and YOLO on the captured still.
+
+## Live Solver Queue Integration (2026-09-05)
+
+- Replaced `solverTasksMock` in `lib/providers/solver_provider.dart` with
+	`ApiService.fetchSolverTasks()` data.
+- Added solver loading, backend error, retry, and pull-to-refresh states.
+- Added `ApiService.updateTaskStatus()` and connected Work on This actions to
+	persisted `PENDING`, `IN_PROGRESS`, and `RESOLVED` status mutations.
+- Added `GET /api/solver-tasks` and `PATCH /api/solver-tasks/:id/status` to the
+	Node gateway.
+- Added a backward-compatible SQLite `status` column migration.
+- A report submitted in Citizen Mode is available to Solver Mode after the
+	solver queue is refreshed because both views query the same SQLite reports.

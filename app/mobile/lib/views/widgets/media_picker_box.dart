@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../providers/report_form_provider.dart';
 
@@ -7,14 +10,16 @@ class MediaPickerBox extends StatelessWidget {
   const MediaPickerBox({
     super.key,
     required this.hasImage,
+    required this.imageFile,
     required this.hint,
     required this.onPick,
     required this.onClear,
   });
 
   final bool hasImage;
+  final XFile? imageFile;
   final String hint;
-  final ValueChanged<ImagePickSource> onPick;
+  final Future<void> Function(ImagePickSource) onPick;
   final VoidCallback onClear;
 
   static const boxHeight = 188.0;
@@ -27,7 +32,7 @@ class MediaPickerBox extends StatelessWidget {
         SizedBox(
           height: boxHeight,
           child: hasImage
-              ? _Preview(onRetake: () => _chooseSource(context))
+              ? _Preview(imageFile: imageFile, onRetake: () => _chooseSource(context))
               : _Empty(hint: hint, onTap: () => _chooseSource(context)),
         ),
         if (hasImage) ...[
@@ -87,7 +92,7 @@ class MediaPickerBox extends StatelessWidget {
         );
       },
     );
-    if (source != null) onPick(source);
+    if (source != null) await onPick(source);
   }
 }
 
@@ -135,8 +140,9 @@ class _Empty extends StatelessWidget {
 }
 
 class _Preview extends StatelessWidget {
-  const _Preview({required this.onRetake});
+  const _Preview({required this.imageFile, required this.onRetake});
 
+  final XFile? imageFile;
   final VoidCallback onRetake;
 
   @override
@@ -146,8 +152,15 @@ class _Preview extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          const ColoredBox(color: Color(0xFF5A5F68)),
-          CustomPaint(painter: _CapturedStillPainter()),
+          if (imageFile != null)
+            FutureBuilder<List<int>>(
+              future: imageFile!.readAsBytes(),
+              builder: (context, snapshot) => snapshot.hasData
+                  ? Image.memory(Uint8List.fromList(snapshot.data!), fit: BoxFit.cover)
+                  : const ColoredBox(color: Color(0xFFEEF1F8)),
+            )
+          else
+            const ColoredBox(color: Color(0xFF5A5F68)),
           Positioned(
             right: 10,
             top: 10,
@@ -202,23 +215,3 @@ class _DashBorderPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-class _CapturedStillPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final hole = Paint()..color = const Color(0xFF2A2D33);
-    final rim = Paint()
-      ..color = const Color(0xFF8A9098)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 6;
-    final oval = Rect.fromCenter(
-      center: Offset(size.width * 0.5, size.height * 0.58),
-      width: size.width * 0.55,
-      height: size.height * 0.42,
-    );
-    canvas.drawOval(oval, hole);
-    canvas.drawOval(oval, rim);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}

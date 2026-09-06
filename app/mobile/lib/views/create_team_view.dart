@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../providers/solver_provider.dart';
+import '../services/api_service.dart';
 
 const _kBlue = Color(0xFF4A62AD);
 const _kInk = Color(0xFF1C2333);
@@ -20,6 +21,8 @@ class _CreateTeamViewState extends State<CreateTeamView> {
   final _collegeController = TextEditingController();
   final _leadController = TextEditingController();
   final _contactController = TextEditingController();
+  final _apiService = ApiService();
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
@@ -27,12 +30,31 @@ class _CreateTeamViewState extends State<CreateTeamView> {
     _collegeController.dispose();
     _leadController.dispose();
     _contactController.dispose();
+    _apiService.dispose();
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    Navigator.pop(context, true);
+    setState(() => _isSubmitting = true);
+    try {
+      await _apiService.createTeam(
+        reportId: widget.task.id,
+        name: _teamNameController.text.trim(),
+        institution: _collegeController.text.trim(),
+        leadName: _leadController.text.trim(),
+        contact: _contactController.text.trim(),
+      );
+      if (mounted) Navigator.pop(context, true);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to create team. Please try again.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   @override
@@ -54,15 +76,7 @@ class _CreateTeamViewState extends State<CreateTeamView> {
             ),
             const SizedBox(height: 20),
             _field(_teamNameController, 'Team Name'),
-            _field(
-              _collegeController,
-              'College / Institution Name',
-              suggestions: const [
-                'IIT Delhi',
-                'NIT Surathkal',
-                'Delhi University',
-              ],
-            ),
+            _field(_collegeController, 'College / Institution Name'),
             _field(_leadController, 'Team Lead Name'),
             _field(
               _contactController,
@@ -76,7 +90,9 @@ class _CreateTeamViewState extends State<CreateTeamView> {
                 backgroundColor: _kBlue,
                 minimumSize: const Size.fromHeight(52),
               ),
-              child: const Text('Create Team & Start Solver Mode'),
+                child: _isSubmitting
+                  ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Create Team & Start Solver Mode'),
             ),
           ],
         ),
@@ -87,7 +103,6 @@ class _CreateTeamViewState extends State<CreateTeamView> {
   Widget _field(
     TextEditingController controller,
     String label, {
-    List<String> suggestions = const [],
     TextInputType? keyboardType,
   }) {
     return Padding(
@@ -97,9 +112,6 @@ class _CreateTeamViewState extends State<CreateTeamView> {
         keyboardType: keyboardType,
         decoration: InputDecoration(
           labelText: label,
-          helperText: suggestions.isEmpty
-              ? null
-              : 'Suggestions: ${suggestions.join(', ')}',
           border: const OutlineInputBorder(),
         ),
         validator: (value) =>

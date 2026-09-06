@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 /// Compact play chip: circular play control, static waveform bars, duration.
 class AudioPlayerPill extends StatefulWidget {
   const AudioPlayerPill({
     super.key,
     required this.durationLabel,
+    this.audioUrl,
     this.barCount = 18,
   });
 
   final String durationLabel;
+  final String? audioUrl;
   final int barCount;
 
   @override
@@ -17,6 +20,13 @@ class AudioPlayerPill extends StatefulWidget {
 
 class _AudioPlayerPillState extends State<AudioPlayerPill> {
   bool _playing = false;
+  final AudioPlayer _player = AudioPlayer();
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
 
   static const _heights = <double>[
     0.35,
@@ -45,7 +55,15 @@ class _AudioPlayerPillState extends State<AudioPlayerPill> {
       color: const Color(0xFFEEF1F8),
       borderRadius: BorderRadius.circular(28),
       child: InkWell(
-        onTap: () => setState(() => _playing = !_playing),
+        onTap: () async {
+          if (widget.audioUrl == null || widget.audioUrl!.isEmpty) return;
+          if (_playing) {
+            await _player.pause();
+          } else {
+            await _player.play(UrlSource(widget.audioUrl!));
+          }
+          if (mounted) setState(() => _playing = !_playing);
+        },
         borderRadius: BorderRadius.circular(28),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(6, 6, 12, 6),
@@ -74,16 +92,6 @@ class _AudioPlayerPillState extends State<AudioPlayerPill> {
                     heights: _heights.take(widget.barCount).toList(),
                     active: _playing,
                   ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                widget.durationLabel,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF4A5568),
-                  letterSpacing: 0.2,
                 ),
               ),
             ],

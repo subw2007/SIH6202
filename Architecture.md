@@ -1,5 +1,28 @@
 # Architecture — Citizen UI (mobile)
 
+## Media and sensor flow
+
+`ReportFormProvider` requests GPS permission, reverse-geocodes the coordinates,
+and keeps the human-readable `location_name` editable. Camera/gallery images
+and recorded audio are uploaded as multipart files to the Node gateway before
+`POST /api/reports`; the returned URLs are stored with the SQLite report and
+resolved against the local gateway host when cards render them.
+
+Recording startup first calls `AudioRecorder.hasPermission()`. Permission
+denials and recorder exceptions become provider errors consumed by the form as
+a snackbar. Camera selection stores the captured `XFile.path` as
+`selectedImagePath` for the immediate preview and later upload.
+
+Before recording, the provider resolves `getTemporaryDirectory()` and builds
+an absolute `voice_<timestamp>.m4a` path. This avoids read-only working
+directories on Android; startup exceptions are caught and reported through the
+existing composer error channel.
+
+Video capture and gallery selection store the picker-provided `XFile.path` as
+`selectedVideoPath`. The provider uploads that file before report submission;
+the returned `video_url` is resolved and passed to the shared video player in
+Citizen and Solver cards.
+
 ## Directory map (`app/mobile/lib/`)
 
 ```
@@ -159,10 +182,13 @@ SolverView
     └── status/join/work actions
 ```
 
-`SolverProvider` owns the selected `SolverCategory`, visible category-filtered
-tasks, and high-priority count. Each `SolverTaskCard` receives callbacks for
-joining a team and creating a team; it does not own feed state. The card no
-longer renders an upvote counter or details eye action.
+`SolverProvider` owns the selected `SolverCategory`, API-backed task list,
+loading/error state, visible category-filtered tasks, and high-priority count.
+It fetches on provider initialization and supports pull-to-refresh. Each
+status mutation awaits the gateway PATCH before changing the local task.
+`SolverTaskCard` receives callbacks for joining a team and creating a team; it
+does not own feed state. The card no longer renders an upvote counter or
+details eye action.
 
 Official task schema:
 
@@ -187,11 +213,30 @@ Successful team creation updates `SolverProvider.updateStatus(taskId, status)`;
 category and metric values are derived from the same task collection rather
 than duplicated state.
 
+## Live solver API flow
+
+```
+Citizen submit
+  POST /api/reports → SQLite reports row with status PENDING
+
+SolverProvider initialization or pull-to-refresh
+  GET /api/solver-tasks → { success: true, data: [...] }
+  JSON task mapping → filters and SolverTaskCard list
+
+Work on This
+  PATCH /api/solver-tasks/:id/status
+  server validates and persists status → provider updates local task
+```
+
+`CitizenView` and `SolverView` are separate mode screens but share the same
+gateway database. A newly submitted citizen report therefore appears in the
+solver queue on the next successful fetch or pull-to-refresh.
+
 ## Integration seams (not implemented)
 
 - `POST /reports` multipart: image bytes, audio file, title, lat/lng
 - `image_picker` + camera permission; `record` / Bhashini STT
 - YOLO on the captured still before upload
-- Persist Solver category, details, team membership, and work status through
-  the FastAPI backend
+- Persist Solver category, details, and team membership through the FastAPI
+  backend
 - Auth token; Official inbox under `lib/views/official/`
