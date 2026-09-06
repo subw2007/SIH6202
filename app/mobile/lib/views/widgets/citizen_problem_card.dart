@@ -24,6 +24,7 @@ class CitizenProblemPost {
     this.authorName = 'Citizen',
     this.locationName,
     this.commentCount = 0,
+    this.bundledCount = 0,
   });
 
   final String id;
@@ -45,6 +46,7 @@ class CitizenProblemPost {
   final String authorName;
   final String? locationName;
   final int commentCount;
+  final int bundledCount;
 
   Map<String, dynamic> toMockJson() => {
     'id': id,
@@ -155,6 +157,26 @@ class CitizenProblemCard extends StatelessWidget {
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
+                              if (post.bundledCount > 0) ...[
+                                const SizedBox(height: 5),
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.people_alt_outlined,
+                                      size: 14,
+                                      color: Color(0xFF6B7280),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Also reported by ${post.bundledCount} other people in this area',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF6B7280),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ],
                           ),
                         ),

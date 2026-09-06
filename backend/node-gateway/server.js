@@ -1,5 +1,6 @@
 const cors = require('cors');
 const crypto = require('node:crypto');
+require('dotenv').config();
 const express = require('express');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -10,11 +11,15 @@ const jwt = require('jsonwebtoken');
 const { categorizeReport, generateReportSummary } = require('./utils/categorizer');
 
 const app = express();
-const port = 5001;
+const port = Number(process.env.PORT || 5001);
+const pythonMlServiceUrl = process.env.PYTHON_ML_SERVICE_URL;
 const dataDirectory = path.join(__dirname, 'data');
 const uploadsDirectory = path.join(__dirname, 'uploads');
 const databasePath = path.join(dataDirectory, 'civicpulse.db');
-const jwtSecret = process.env.JWT_SECRET || 'civicpulse-development-secret';
+const jwtSecret = process.env.JWT_SECRET;
+
+if (!jwtSecret) throw new Error('JWT_SECRET environment variable is required');
+if (!pythonMlServiceUrl) throw new Error('PYTHON_ML_SERVICE_URL environment variable is required');
 
 fs.mkdirSync(dataDirectory, { recursive: true });
 fs.mkdirSync(uploadsDirectory, { recursive: true });
@@ -62,6 +67,8 @@ const databaseReady = new Promise((resolve, reject) => {
         translated_text TEXT,
         audio_transcript TEXT,
         priority TEXT,
+        bundled_reports_count INTEGER DEFAULT 0,
+        priority_boost REAL DEFAULT 0,
         ai_metadata TEXT,
         created_at TEXT
       )
@@ -85,6 +92,8 @@ const databaseReady = new Promise((resolve, reject) => {
         ['translated_text', 'TEXT'],
         ['audio_transcript', 'TEXT'],
         ['status', "TEXT DEFAULT 'PENDING'"],
+        ['bundled_reports_count', 'INTEGER DEFAULT 0'],
+        ['priority_boost', 'REAL DEFAULT 0'],
       ].filter(([name]) => !existingColumns.has(name));
       try {
         for (const [name, type] of missingColumns) {
@@ -110,6 +119,7 @@ const databaseReady = new Promise((resolve, reject) => {
           try {
             await runDatabase('DELETE FROM reports');
             await runDatabase('DELETE FROM comments');
+            await runDatabase('DELETE FROM report_updates');
             await runDatabase('DELETE FROM teams');
             await runDatabase('DELETE FROM team_members');
             await runDatabase('DELETE FROM users');
@@ -157,6 +167,19 @@ const databaseReady = new Promise((resolve, reject) => {
         team_id INTEGER,
         user_id TEXT,
         role TEXT
+      )
+    `, (error) => {
+      if (error) reject(error);
+    });
+    database.run(`
+      CREATE TABLE IF NOT EXISTS report_updates (
+        id TEXT PRIMARY KEY,
+        report_id TEXT,
+        notes TEXT,
+        image_url TEXT,
+        video_url TEXT,
+        audio_url TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `, (error) => {
       if (error) reject(error);
@@ -209,8 +232,40 @@ const get = (sql, parameters = []) => new Promise((resolve, reject) => {
 
 const parseReport = (report) => ({
   ...report,
-  ai_metadata: report.ai_metadata ? JSON.parse(report.ai_metadata) : null,
+  ai_metadata: typeof report.ai_metadata === 'string'
+    ? JSON.parse(report.ai_metadata)
+    : report.ai_metadata || null,
 });
+
+const severityBaseScores = { critical: 50, high: 35, medium: 20, low: 10 };
+
+const calculatePriorityScore = (report, now = Date.now()) => {
+  const severity = String(report.priority || report.severity || 'low').toLowerCase();
+  const baseScore = severityBaseScores[severity] || severityBaseScores.low;
+  const commentsCount = Number(report.comment_count || 0);
+  const bundledReportsCount = Number(report.bundled_reports_count || 0);
+  const unresolvedHours = Math.max(0, (now - Date.parse(report.created_at)) / 3600000);
+  const timeDecay = severity === 'high' || severity === 'critical'
+    ? Math.floor(unresolvedHours) * 1.5
+    : 0;
+  return baseScore + commentsCount * 2 + bundledReportsCount * 5 + timeDecay + Number(report.priority_boost || 0);
+};
+
+const priorityScoreSql = `(
+  CASE LOWER(COALESCE(reports.priority, 'low'))
+    WHEN 'critical' THEN 50
+    WHEN 'high' THEN 35
+    WHEN 'medium' THEN 20
+    ELSE 10
+  END
+  + (SELECT COUNT(*) FROM comments WHERE comments.report_id = reports.id) * 2
+  + COALESCE(reports.bundled_reports_count, 0) * 5
+  + CASE WHEN LOWER(COALESCE(reports.priority, 'low')) IN ('high', 'critical')
+      THEN CAST(MAX(0, (julianday('now') - julianday(reports.created_at)) * 24) AS INTEGER) * 1.5
+      ELSE 0
+    END
+  + COALESCE(reports.priority_boost, 0)
+)`;
 
 const userProfile = (user) => ({
   id: user.id,
@@ -302,7 +357,7 @@ app.post('/api/transcribe', async (request, response) => {
   if (!uploadName) return response.status(400).json({ error: 'audio_url is required' });
 
   try {
-    const transcriptionResponse = await fetch('http://127.0.0.1:8000/transcribe-audio', {
+    const transcriptionResponse = await fetch(`${pythonMlServiceUrl}/transcribe-audio`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ audio_path: path.join(uploadsDirectory, uploadName) }),
@@ -337,6 +392,10 @@ app.get('/api/reports', requireAuth, async (request, response) => {
     await databaseReady;
     const userId = String(request.user.id);
     const { city, category, severity } = request.query;
+    const sort = String(request.query.sort || request.query.sort_by || '').toLowerCase();
+    const orderBy = sort === 'priority_score'
+      ? 'ORDER BY priority_score DESC, created_at DESC'
+      : 'ORDER BY created_at DESC';
     const filters = [];
     const parameters = [];
     if (city && city !== 'All') {
@@ -357,13 +416,14 @@ app.get('/api/reports', requireAuth, async (request, response) => {
         users.name AS author_name,
         (SELECT COUNT(*) FROM comments WHERE comments.report_id = reports.id) AS comment_count,
         (SELECT COUNT(*) FROM teams WHERE teams.report_id = reports.id) AS team_count,
+        ${priorityScoreSql} AS priority_score,
         (SELECT teams.name
          FROM teams INNER JOIN team_members ON team_members.team_id = teams.id
          WHERE teams.report_id = reports.id AND team_members.user_id = ?
          ORDER BY teams.created_at ASC LIMIT 1) AS user_joined_team_name
       FROM reports LEFT JOIN users ON reports.user_id = users.id
       ${whereClause}
-      ORDER BY created_at DESC
+      ${orderBy}
     `, [userId, ...parameters]);
     response.json(reports.map(parseReport));
   } catch (error) {
@@ -381,7 +441,32 @@ app.post('/api/reports', requireAuth, async (request, response) => {
 
   try {
     await databaseReady;
-    const analysisResponse = await fetch('http://127.0.0.1:8000/analyze-report', {
+    const userId = String(request.user.id);
+    const locationName = String(report.location_name || report.location || '').trim() || null;
+    const latitude = report.latitude ?? null;
+    const longitude = report.longitude ?? null;
+    let candidateReports = [];
+    if (latitude !== null && longitude !== null) {
+      candidateReports = await all(
+        `SELECT id, user_id, title, description, category, latitude, longitude,
+                status, created_at, bundled_reports_count
+         FROM reports
+         WHERE latitude IS NOT NULL
+           AND longitude IS NOT NULL
+           AND COALESCE(UPPER(status), 'PENDING') != 'RESOLVED'
+           AND 6371000 * 2 * ASIN(SQRT(
+             SIN((RADIANS(latitude) - RADIANS(?)) / 2) *
+             SIN((RADIANS(latitude) - RADIANS(?)) / 2) +
+             COS(RADIANS(?)) * COS(RADIANS(latitude)) *
+             SIN((RADIANS(longitude) - RADIANS(?)) / 2) *
+             SIN((RADIANS(longitude) - RADIANS(?)) / 2)
+           )) <= 100
+         ORDER BY created_at DESC`,
+        [latitude, latitude, latitude, longitude, longitude],
+      );
+    }
+
+    const analysisResponse = await fetch(`${pythonMlServiceUrl}/analyze-report`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(report),
@@ -398,10 +483,53 @@ app.post('/api/reports', requireAuth, async (request, response) => {
       analysisSignals.audio_transcript || analysisSignals.translated_description || '',
     ).trim();
     const description = submittedDescription || fallbackDescription;
+
+    if (candidateReports.length > 0) {
+      const evaluationResponse = await fetch(`${pythonMlServiceUrl}/evaluate-duplicate`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          new_submission: {
+            title: report.title || '',
+            description,
+            category: report.category || '',
+          },
+          candidate_reports: candidateReports,
+        }),
+      });
+      if (!evaluationResponse.ok) {
+        return response.status(502).json({ error: 'Duplicate evaluation failed' });
+      }
+      const evaluation = await evaluationResponse.json();
+      const matchedReportId = evaluation?.matched_report_id?.toString() || null;
+      const matchedReport = candidateReports.find((candidate) => candidate.id === matchedReportId);
+      if (evaluation?.is_duplicate === true && matchedReport) {
+        if (String(matchedReport.user_id) === userId) {
+          return response.status(409).json({
+            error: 'active_report_exists',
+            message: 'You already have an active report for this issue.',
+            report_id: matchedReport.id,
+          });
+        }
+
+        await run(
+          `UPDATE reports
+           SET bundled_reports_count = COALESCE(bundled_reports_count, 0) + 1
+           WHERE id = ?`,
+          [matchedReport.id],
+        );
+        return response.status(200).json({
+          message: 'Report bundled into existing ticket',
+          bundled: true,
+          primary_report_id: matchedReport.id,
+        });
+      }
+    }
+
     const createdAt = new Date().toISOString();
     const record = {
       id: crypto.randomUUID(),
-      user_id: String(request.user.id),
+      user_id: userId,
       title: report.title || '',
       description,
       category: report.category,
@@ -427,8 +555,8 @@ app.post('/api/reports', requireAuth, async (request, response) => {
       `INSERT INTO reports
         (id, user_id, title, description, category, latitude, longitude, location_name,
          image_url, video_url, audio_url, translated_text, audio_transcript,
-         priority, ai_metadata, created_at, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        priority, bundled_reports_count, priority_boost, ai_metadata, created_at, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         record.id,
         record.user_id,
@@ -444,13 +572,15 @@ app.post('/api/reports', requireAuth, async (request, response) => {
         record.translated_text,
         record.audio_transcript,
         record.priority,
+        0,
+        0,
         JSON.stringify(record.ai_metadata),
         record.created_at,
         record.status,
       ],
     );
 
-    return response.status(201).json(record);
+    return response.status(201).json({ ...record, priority_score: calculatePriorityScore(record) });
   } catch (error) {
     return response.status(502).json({ error: 'Unable to analyze or save the report' });
   }
@@ -473,7 +603,12 @@ app.get('/api/reports/:id', requireAuth, async (request, response) => {
       [String(request.user.id), request.params.id],
     );
     if (!report) return response.status(404).json({ error: 'Report not found' });
-    return response.json(parseReport(report));
+    const timeline = await all(
+      `SELECT id, report_id, notes, image_url, video_url, audio_url, created_at
+       FROM report_updates WHERE report_id = ? ORDER BY created_at ASC`,
+      [request.params.id],
+    );
+    return response.json({ ...parseReport(report), timeline });
   } catch (error) {
     return response.status(500).json({ error: 'Unable to load report' });
   }
@@ -689,5 +824,5 @@ app.patch('/api/solver-tasks/:id/status', async (request, response) => {
 });
 
 app.listen(port, '0.0.0.0', () => {
-  console.log(`Node gateway listening on http://127.0.0.1:${port}`);
+  console.log(`Node gateway listening on port ${port}`);
 });

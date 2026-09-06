@@ -32,7 +32,7 @@ class MediaPickerBox extends StatelessWidget {
         SizedBox(
           height: boxHeight,
           child: hasImage
-              ? _Preview(imageFile: imageFile, onRetake: () => _chooseSource(context))
+              ? _Preview(imageFile: imageFile)
               : _Empty(hint: hint, onTap: () => _chooseSource(context)),
         ),
         if (hasImage) ...[
@@ -140,10 +140,9 @@ class _Empty extends StatelessWidget {
 }
 
 class _Preview extends StatelessWidget {
-  const _Preview({required this.imageFile, required this.onRetake});
+  const _Preview({required this.imageFile});
 
   final XFile? imageFile;
-  final VoidCallback onRetake;
 
   @override
   Widget build(BuildContext context) {
@@ -161,25 +160,6 @@ class _Preview extends StatelessWidget {
             )
           else
             const ColoredBox(color: Color(0xFF5A5F68)),
-          Positioned(
-            right: 10,
-            top: 10,
-            child: Material(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(20),
-              child: InkWell(
-                onTap: onRetake,
-                borderRadius: BorderRadius.circular(20),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: Text(
-                    'Retake',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );

@@ -1,8 +1,12 @@
+import json
+import os
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from services.ai_service import transcribe_and_translate_audio, translate_text
@@ -19,6 +23,11 @@ class ReportInput(BaseModel):
     audio_url: str | None = None
     image_url: str | None = None
     video_url: str | None = None
+
+
+class DuplicateEvaluationInput(BaseModel):
+    new_submission: dict[str, Any]
+    candidate_reports: list[dict[str, Any]]
 
 
 @app.get("/health")
@@ -83,6 +92,107 @@ def analyze_report(report: ReportInput) -> dict[str, Any]:
         "model": "rule-based-v1+whisper-small",
     }
 
+
+@app.post("/evaluate-duplicate")
+def evaluate_duplicate(payload: DuplicateEvaluationInput) -> dict[str, Any]:
+    system_prompt = (
+        "Are these describing the exact same physical problem? "
+        "Ignore minor category mismatches. Return ONLY strict JSON with keys "
+        "is_duplicate (boolean) and matched_report_id (string or null)."
+    )
+    user_prompt = json.dumps(
+        {
+            "new_submission": payload.new_submission,
+            "candidate_reports": payload.candidate_reports,
+        },
+        ensure_ascii=True,
+    )
+    model_names = [
+        model.strip()
+        for model in os.getenv(
+            "OLLAMA_MODELS",
+            "llama3.2:3b,qwen2.5,llama3.2:1b",
+        ).split(",")
+        if model.strip()
+    ]
+    
+    print("\n--- STARTING DUPLICATE EVALUATION ---")
+    print(f"Models to try: {model_names}")
+    
+    response_body = None
+    last_error: Exception | None = None
+    
+    for model_name in model_names:
+        print(f"Trying model: {model_name}...")
+        request_body = json.dumps(
+            {
+                "model": model_name,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "format": "json",
+                "stream": False,
+            }
+        ).encode("utf-8")
+        
+        request = Request(
+            f"{os.getenv('OLLAMA_BASE_URL', 'http://127.0.0.1:11434')}/api/chat",
+            data=request_body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=60) as response:
+                response_body = json.loads(response.read().decode("utf-8"))
+            print(f"Model {model_name} succeeded!")
+            break
+        except Exception as error:
+            print(f"Model {model_name} failed with error: {error}")
+            if hasattr(error, 'read'):
+                print(f"Error body: {error.read().decode('utf-8')}")
+            last_error = error
+
+    if response_body is None:
+        print(f"All models failed. Last error: {last_error}")
+        raise HTTPException(status_code=502, detail=f"Local LLM evaluation failed: {last_error}") from last_error
+
+    content = response_body.get("message", {}).get("content", "")
+    print(f"LLM Raw Output: {content}")
+    
+    try:
+        result = json.loads(content)
+    except json.JSONDecodeError as error:
+        print(f"Warning: JSON Decode Error: {error}")
+        return {"is_duplicate": False, "matched_report_id": None}
+
+    if not isinstance(result, dict):
+        print(f"Warning: LLM returned a non-object JSON value: {type(result)}")
+        result = {}
+
+    is_duplicate = result.get("is_duplicate")
+    matched_report_id = result.get("matched_report_id")
+    
+    print(f"Parsed is_duplicate: {is_duplicate} (type: {type(is_duplicate)})")
+    
+    # SAFETY NET: Small LLMs often return "true" (string) instead of true (boolean)
+    if is_duplicate is None:
+        is_duplicate = False
+    elif isinstance(is_duplicate, str):
+        is_duplicate = is_duplicate.lower() == "true"
+    elif not isinstance(is_duplicate, bool):
+        print(f"Warning: invalid boolean value, defaulting to false: {is_duplicate}")
+        is_duplicate = False
+            
+    if matched_report_id is not None and not isinstance(matched_report_id, str):
+        print("Warning: invalid report ID, defaulting to None")
+        matched_report_id = None
+        
+    print("--- EVALUATION SUCCESSFUL ---\n")
+    return {
+        "is_duplicate": is_duplicate,
+        "matched_report_id": matched_report_id,
+    }
 
 if __name__ == "__main__":
     import uvicorn

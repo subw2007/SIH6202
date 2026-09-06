@@ -47,21 +47,18 @@ class _CitizenViewState extends State<CitizenView> {
                     child: const _CitizenHeader(),
                   ),
                   const SliverToBoxAdapter(child: _ReportBanner()),
-                  SliverPersistentHeader(
-                    pinned: true,
-                    delegate: _FilterHeaderDelegate(
-                      child: FeedFilterBar(
-                        city: 'All',
-                        category: 'All',
-                        severity: 'All',
-                        margin: const EdgeInsets.symmetric(horizontal: 20),
-                        onChanged: (city, category, severity) =>
-                            feed.fetchCitizenFeed(
-                              city: city,
-                              category: category,
-                              severity: severity,
-                            ),
-                      ),
+                  SliverToBoxAdapter(
+                    child: FeedFilterBar(
+                      city: 'All',
+                      category: 'All',
+                      severity: 'All',
+                      margin: const EdgeInsets.symmetric(horizontal: 20),
+                      onChanged: (city, category, severity) =>
+                          feed.fetchCitizenFeed(
+                            city: city,
+                            category: category,
+                            severity: severity,
+                          ),
                     ),
                   ),
                   SliverToBoxAdapter(
@@ -183,6 +180,9 @@ class _CitizenViewState extends State<CitizenView> {
           : report['comments'] is List
           ? (report['comments'] as List).length
           : 0,
+        bundledCount: report['bundled_reports_count'] is num
+          ? (report['bundled_reports_count'] as num).toInt()
+          : 0,
     );
   }
 
@@ -193,28 +193,6 @@ class _CitizenViewState extends State<CitizenView> {
     if (difference.inDays < 1) return '${difference.inHours}h ago';
     return '${difference.inDays}d ago';
   }
-}
-
-class _FilterHeaderDelegate extends SliverPersistentHeaderDelegate {
-  const _FilterHeaderDelegate({required this.child});
-
-  final Widget child;
-
-  @override
-  double get minExtent => 95;
-
-  @override
-  double get maxExtent => 95;
-
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) => child;
-
-  @override
-  bool shouldRebuild(covariant _FilterHeaderDelegate oldDelegate) => false;
 }
 
 class _CitizenHeader extends StatelessWidget {
@@ -343,30 +321,27 @@ class _FeedHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Recent in your area',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: _kInk,
+    return Column(
+      children: [
+        const SizedBox(height: 16.0),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Recent in your area',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-            ),
+              Text(
+                '$reportCount reports',
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+            ],
           ),
-          Text(
-            '$reportCount reports',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: Color(0xFF8A93A6),
-            ),
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 12.0),
+      ],
     );
   }
 }

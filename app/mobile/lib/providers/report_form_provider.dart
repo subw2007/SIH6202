@@ -45,6 +45,7 @@ class ReportFormProvider extends ChangeNotifier {
   bool _isSubmitting = false;
   bool _submitted = false;
   String? _errorMessage;
+  String? _conflictReportId;
   final Future<void> Function()? _onReportSubmitted;
   final ApiService _apiService = ApiService();
   final ImagePicker _imagePicker = ImagePicker();
@@ -77,6 +78,11 @@ class ReportFormProvider extends ChangeNotifier {
   bool get hasVoiceNote => _recordedAudioPath != null;
   bool get hasVideo => _videoFile != null;
   String? get errorMessage => _errorMessage;
+  String? takeConflictReportId() {
+    final reportId = _conflictReportId;
+    _conflictReportId = null;
+    return reportId;
+  }
   double? get latitude => _latitude;
   double? get longitude => _longitude;
 
@@ -342,6 +348,7 @@ class ReportFormProvider extends ChangeNotifier {
 
   Future<bool> submit() async {
     if (!canSubmit) return false;
+    _conflictReportId = null;
     _isSubmitting = true;
     notifyListeners();
     try {
@@ -367,6 +374,9 @@ class ReportFormProvider extends ChangeNotifier {
       await _onReportSubmitted?.call();
       _submitted = true;
       return true;
+    } on ActiveReportConflictException catch (error) {
+      _conflictReportId = error.reportId;
+      return false;
     } catch (_) {
       return false;
     } finally {

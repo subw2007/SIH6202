@@ -4,28 +4,16 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
+import '../config/app_config.dart';
+
+class ActiveReportConflictException implements Exception {
+  const ActiveReportConflictException(this.reportId);
+
+  final String reportId;
+}
+
 class ApiService {
   ApiService({http.Client? client}) : _client = client ?? http.Client();
-
-  // 1. Checks both 'BASE_URL' and 'API_BASE_URL' flags from --dart-define
-  // 2. Fallbacks to LAN IP (10.206.25.54) instead of localhost
-  static String get _rawBaseUrl {
-    const fromBaseUrl = String.fromEnvironment('BASE_URL');
-    if (fromBaseUrl.isNotEmpty) {
-      return fromBaseUrl.endsWith('/api') ? fromBaseUrl : '$fromBaseUrl/api';
-    }
-
-    const fromApiBaseUrl = String.fromEnvironment('API_BASE_URL');
-    if (fromApiBaseUrl.isNotEmpty) {
-      return fromApiBaseUrl.endsWith('/api')
-          ? fromApiBaseUrl
-          : '$fromApiBaseUrl/api';
-    }
-
-    return 'http://10.206.25.54:5001/api';
-  }
-
-  static final baseUrl = _rawBaseUrl;
 
   final http.Client _client;
   static String? _token;
@@ -53,7 +41,7 @@ class ApiService {
       });
 
   Future<Map<String, dynamic>> getCurrentUser() async {
-    final response = await _client.get(Uri.parse('$baseUrl/auth/me'), headers: _headers());
+    final response = await _client.get(Uri.parse('${AppConfig.baseUrl}/auth/me'), headers: _headers());
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('Session expired');
     }
@@ -65,7 +53,7 @@ class ApiService {
     Map<String, String> data,
   ) async {
     final response = await _client.post(
-      Uri.parse('$baseUrl$path'),
+      Uri.parse('${AppConfig.baseUrl}$path'),
       headers: _headers({'Content-Type': 'application/json'}),
       body: jsonEncode(data),
     );
@@ -79,9 +67,9 @@ class ApiService {
   static String resolveMediaUrl(String? url) {
     if (url == null || url.isEmpty) return '';
     if (url.startsWith('http')) return url;
-    final gatewayUrl = baseUrl.endsWith('/api')
-        ? baseUrl.substring(0, baseUrl.length - 4)
-        : baseUrl;
+    final gatewayUrl = AppConfig.baseUrl.endsWith('/api')
+      ? AppConfig.baseUrl.substring(0, AppConfig.baseUrl.length - 4)
+      : AppConfig.baseUrl;
     return '$gatewayUrl$url';
   }
 
@@ -93,7 +81,7 @@ class ApiService {
   Future<String> transcribeAudio(XFile file) async {
     final audioUrl = await uploadFile(file);
     final response = await _client.post(
-      Uri.parse('$baseUrl/transcribe'),
+      Uri.parse('${AppConfig.baseUrl}/transcribe'),
       headers: _headers({'Content-Type': 'application/json'}),
       body: jsonEncode({'audio_url': audioUrl}),
     );
@@ -112,7 +100,7 @@ class ApiService {
   }
 
   Future<Map<String, String>> uploadMedia(XFile file) async {
-    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/upload'))
+    final request = http.MultipartRequest('POST', Uri.parse('${AppConfig.baseUrl}/upload'))
       ..headers.addAll(_headers());
     request.files.add(
       http.MultipartFile.fromBytes(
@@ -143,7 +131,7 @@ class ApiService {
     String category = 'All',
     String severity = 'All',
   }) async {
-    final uri = Uri.parse('$baseUrl/reports').replace(
+    final uri = Uri.parse('${AppConfig.baseUrl}/reports').replace(
       queryParameters: {
         if (city != 'All') 'city': city,
         if (category != 'All') 'category': category,
@@ -180,13 +168,20 @@ class ApiService {
   }) => fetchReports(city: city, category: category, severity: severity);
 
   Future<Map<String, dynamic>> submitReport(Map<String, dynamic> data) async {
-    final uri = Uri.parse('$baseUrl/reports');
+    final uri = Uri.parse('${AppConfig.baseUrl}/reports');
     try {
       final response = await _client.post(
         uri,
         headers: _headers({'Content-Type': 'application/json'}),
         body: jsonEncode(data),
       );
+      if (response.statusCode == 409) {
+        final decoded = jsonDecode(response.body);
+        final reportId = decoded is Map ? decoded['report_id']?.toString() : null;
+        if (reportId != null && reportId.isNotEmpty) {
+          throw ActiveReportConflictException(reportId);
+        }
+      }
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw Exception('Request failed with status ${response.statusCode}');
       }
@@ -205,9 +200,24 @@ class ApiService {
     }
   }
 
+  Future<Map<String, dynamic>> fetchReport(String reportId) async {
+    final response = await _client.get(
+      Uri.parse('${AppConfig.baseUrl}/reports/${Uri.encodeComponent(reportId)}'),
+      headers: _headers(),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Request failed with status ${response.statusCode}');
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map) {
+      throw const FormatException('Report must be a JSON object');
+    }
+    return Map<String, dynamic>.from(decoded);
+  }
+
   Future<String> categorizeText(String text) async {
     final response = await _client.post(
-      Uri.parse('$baseUrl/reports/categorize'),
+      Uri.parse('${AppConfig.baseUrl}/reports/categorize'),
       headers: _headers({'Content-Type': 'application/json'}),
       body: jsonEncode({'description': text}),
     );
@@ -225,7 +235,7 @@ class ApiService {
 
   Future<String> summarizeText(String rawText) async {
     final response = await _client.post(
-      Uri.parse('$baseUrl/reports/summarize'),
+      Uri.parse('${AppConfig.baseUrl}/reports/summarize'),
       headers: _headers({'Content-Type': 'application/json'}),
       body: jsonEncode({'rawText': rawText}),
     );
@@ -241,7 +251,7 @@ class ApiService {
 
   Future<List<Map<String, dynamic>>> fetchComments(String reportId) async {
     final uri = Uri.parse(
-      '$baseUrl/reports/${Uri.encodeComponent(reportId)}/comments',
+      '${AppConfig.baseUrl}/reports/${Uri.encodeComponent(reportId)}/comments',
     );
     final response = await _client.get(uri, headers: _headers());
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -263,7 +273,7 @@ class ApiService {
     required String? authorName,
   }) async {
     final uri = Uri.parse(
-      '$baseUrl/reports/${Uri.encodeComponent(reportId)}/comments',
+      '${AppConfig.baseUrl}/reports/${Uri.encodeComponent(reportId)}/comments',
     );
     final response = await _client.post(
       uri,
@@ -288,7 +298,7 @@ class ApiService {
 
   Future<List<Map<String, dynamic>>> fetchTeams(String reportId) async {
     final response = await _client.get(
-      Uri.parse('$baseUrl/reports/${Uri.encodeComponent(reportId)}/teams'),
+      Uri.parse('${AppConfig.baseUrl}/reports/${Uri.encodeComponent(reportId)}/teams'),
       headers: _headers(),
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -310,7 +320,7 @@ class ApiService {
     required String contact,
   }) async {
     final response = await _client.post(
-      Uri.parse('$baseUrl/reports/${Uri.encodeComponent(reportId)}/teams'),
+      Uri.parse('${AppConfig.baseUrl}/reports/${Uri.encodeComponent(reportId)}/teams'),
       headers: _headers({'Content-Type': 'application/json'}),
       body: jsonEncode({
         'name': name,
@@ -329,7 +339,7 @@ class ApiService {
 
   Future<void> joinTeam(String teamId) async {
     final response = await _client.post(
-      Uri.parse('$baseUrl/teams/${Uri.encodeComponent(teamId)}/join'),
+      Uri.parse('${AppConfig.baseUrl}/teams/${Uri.encodeComponent(teamId)}/join'),
       headers: _headers({'Content-Type': 'application/json'}),
       body: jsonEncode({}),
     );
@@ -339,7 +349,7 @@ class ApiService {
   }
 
   Future<List<Map<String, dynamic>>> fetchMyTeams() async {
-    final response = await _client.get(Uri.parse('$baseUrl/users/me/teams'), headers: _headers());
+    final response = await _client.get(Uri.parse('${AppConfig.baseUrl}/users/me/teams'), headers: _headers());
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('Request failed with status ${response.statusCode}');
     }
@@ -356,7 +366,7 @@ class ApiService {
     String status,
   ) async {
     final uri = Uri.parse(
-      '$baseUrl/solver-tasks/${Uri.encodeComponent(id)}/status',
+      '${AppConfig.baseUrl}/solver-tasks/${Uri.encodeComponent(id)}/status',
     );
     try {
       final response = await _client.patch(

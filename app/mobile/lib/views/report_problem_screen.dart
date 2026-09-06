@@ -8,7 +8,9 @@ import 'package:provider/provider.dart';
 import '../providers/citizen_feed_provider.dart';
 import '../providers/report_form_provider.dart';
 import '../screens/map_picker_screen.dart';
+import '../screens/problem_detail_screen.dart';
 import '../services/api_service.dart';
+import 'widgets/citizen_problem_card.dart';
 import 'widgets/media_picker_box.dart';
 import 'widgets/video_picker_box.dart';
 import 'widgets/voice_recorder_widget.dart';
@@ -316,7 +318,50 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
   Future<void> _submit(BuildContext context) async {
     final form = context.read<ReportFormProvider>();
     final ok = await form.submit();
-    if (!ok || !context.mounted) return;
+    if (!ok) {
+      final conflictReportId = form.takeConflictReportId();
+      if (conflictReportId != null && context.mounted) {
+        final viewActiveReport = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Active Report Found'),
+            content: const Text(
+              'You already have an active report for this issue at this location.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('View Active Report'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Cancel'),
+              ),
+            ],
+          ),
+        );
+        if (viewActiveReport == true && context.mounted) {
+          try {
+            final report = await _apiService.fetchReport(conflictReportId);
+            if (!context.mounted) return;
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => ProblemDetailScreen(
+                  post: _postFromReport(report),
+                ),
+              ),
+            );
+          } catch (_) {
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Unable to load the active report.')),
+            );
+          }
+        }
+      }
+      return;
+    }
+    if (!context.mounted) return;
 
     await showDialog<void>(
       context: context,
@@ -360,6 +405,55 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
     );
 
     if (context.mounted) Navigator.of(context).pop();
+  }
+
+  CitizenProblemPost _postFromReport(Map<String, dynamic> report) {
+    final latitude = report['latitude'];
+    final longitude = report['longitude'];
+    final location = report['location_name']?.toString() ??
+        (latitude != null && longitude != null
+            ? '$latitude, $longitude'
+            : 'Location unavailable');
+    final createdAt = DateTime.tryParse(report['created_at']?.toString() ?? '');
+    final durationMs = report['audio_duration_ms'] as num?;
+    final seconds = durationMs == null ? 0 : (durationMs / 1000).round();
+    final metadata = report['ai_metadata'];
+    final priority = report['priority']?.toString();
+    return CitizenProblemPost(
+      id: report['id']?.toString() ?? 'active-report',
+      title: report['title']?.toString().trim().isNotEmpty == true
+          ? report['title'].toString()
+          : 'Untitled report',
+      category: report['category']?.toString() ?? 'Report',
+      severity: report['severity']?.toString() ?? priority ?? 'MEDIUM',
+      location: location,
+      timeAgo: createdAt == null ? 'Just now' : _timeAgo(createdAt),
+      upvoteCount: 0,
+      audioDuration:
+          '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}',
+      isVerified: priority == 'high' ||
+          metadata is Map && metadata['severity'] == 'high',
+      imageUrl: ApiService.resolveMediaUrl(report['image_url']?.toString()),
+      audioUrl: ApiService.resolveMediaUrl(report['audio_url']?.toString()),
+      videoUrl: ApiService.resolveMediaUrl(report['video_url']?.toString()),
+      audioTranscript: report['audio_transcript']?.toString(),
+      translatedText: report['translated_text']?.toString(),
+      description: report['description']?.toString(),
+      createdAt: createdAt,
+      authorName: report['author_name']?.toString() ?? 'Citizen',
+      locationName: location,
+      commentCount: report['comment_count'] is num
+          ? (report['comment_count'] as num).toInt()
+          : 0,
+    );
+  }
+
+  String _timeAgo(DateTime createdAt) {
+    final difference = DateTime.now().difference(createdAt.toLocal());
+    if (difference.inMinutes < 1) return 'Just now';
+    if (difference.inHours < 1) return '${difference.inMinutes}m ago';
+    if (difference.inDays < 1) return '${difference.inHours}h ago';
+    return '${difference.inDays}d ago';
   }
 
   Future<void> _openMapPicker(

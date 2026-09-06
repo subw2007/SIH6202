@@ -89,10 +89,9 @@ class _ProblemDetailScreenState extends State<ProblemDetailScreen> {
         ? post.locationName!
         : post.location;
     final description = post.description?.trim() ?? '';
-    final isAiGeneratedDescription =
-        description.isNotEmpty &&
-        (description == post.translatedText ||
-            description == post.audioTranscript);
+    final refinedDescription = post.translatedText?.trim().isNotEmpty == true
+      ? post.translatedText!.trim()
+      : description;
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FB),
       appBar: AppBar(
@@ -166,44 +165,49 @@ class _ProblemDetailScreenState extends State<ProblemDetailScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          if (isAiGeneratedDescription)
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Chip(
-                avatar: Icon(Icons.auto_awesome_rounded, size: 16),
-                label: Text('AI Generated Description'),
-              ),
+          const Text(
+            'Description',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1C2333),
             ),
-          Text(
-            description.isNotEmpty ? description : 'No description provided.',
-            style: const TextStyle(
-              fontSize: 16,
-              height: 1.45,
-              color: Color(0xFF39445D),
+          ),
+          const SizedBox(height: 10),
+          Card(
+            margin: EdgeInsets.zero,
+            elevation: 0,
+            color: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: const BorderSide(color: Color(0xFFD9DEEA)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (refinedDescription.isNotEmpty)
+                    const Chip(
+                      avatar: Icon(Icons.auto_awesome_rounded, size: 16),
+                      label: Text('✦ AI Refined'),
+                    ),
+                  Text(
+                    refinedDescription.isNotEmpty
+                        ? refinedDescription
+                        : 'No description provided.',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      height: 1.45,
+                      color: Color(0xFF39445D),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 16),
           _LocationCard(address: location),
-          if (post.translatedText?.trim().isNotEmpty == true) ...[
-            const SizedBox(height: 20),
-            const Text(
-              'Translated text',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF4A62AD),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              post.translatedText!,
-              style: const TextStyle(
-                fontSize: 15,
-                height: 1.4,
-                color: Color(0xFF39445D),
-              ),
-            ),
-          ],
           if (audioUrl.isNotEmpty) ...[
             const SizedBox(height: 28),
             const Text(
