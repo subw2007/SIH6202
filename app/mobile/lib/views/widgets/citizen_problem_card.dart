@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../screens/problem_detail_screen.dart';
+import '../../services/report_author.dart';
 import 'video_player_widget.dart';
 
 class CitizenProblemPost {
@@ -21,7 +22,7 @@ class CitizenProblemPost {
     this.translatedText,
     this.description,
     this.createdAt,
-    this.authorName = 'Citizen',
+    this.authorName = 'Anonymous Citizen',
     this.locationName,
     this.commentCount = 0,
     this.bundledCount = 0,
@@ -47,6 +48,9 @@ class CitizenProblemPost {
   final String? locationName;
   final int commentCount;
   final int bundledCount;
+
+  static String authorNameFromReport(Map<String, dynamic> report) =>
+      reportAuthorName(report);
 
   Map<String, dynamic> toMockJson() => {
     'id': id,

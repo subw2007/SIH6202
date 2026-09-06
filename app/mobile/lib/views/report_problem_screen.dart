@@ -10,6 +10,7 @@ import '../providers/report_form_provider.dart';
 import '../screens/map_picker_screen.dart';
 import '../screens/problem_detail_screen.dart';
 import '../services/api_service.dart';
+import '../services/report_author.dart';
 import 'widgets/citizen_problem_card.dart';
 import 'widgets/media_picker_box.dart';
 import 'widgets/video_picker_box.dart';
@@ -109,8 +110,37 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final form = context.watch<ReportFormProvider>();
-    final errorMessage = form.errorMessage;
+    final form = context.read<ReportFormProvider>();
+    final viewState = context
+        .select<
+          ReportFormProvider,
+          ({
+            bool canSubmit,
+            String? errorMessage,
+            bool hasImage,
+            XFile? imageFile,
+            String imageHint,
+            XFile? videoFile,
+            String category,
+            String locationLabel,
+            LocationDetectState locationState,
+            bool isSubmitting,
+          })
+        >(
+          (form) => (
+            canSubmit: form.canSubmit,
+            errorMessage: form.errorMessage,
+            hasImage: form.hasImage,
+            imageFile: form.imageFile,
+            imageHint: form.imageHint,
+            videoFile: form.videoFile,
+            category: form.category,
+            locationLabel: form.locationLabel,
+            locationState: form.locationState,
+            isSubmitting: form.isSubmitting,
+          ),
+        );
+    final errorMessage = viewState.errorMessage;
     if (errorMessage != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!context.mounted) return;
@@ -162,9 +192,9 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
                   const _SectionLabel('Photo'),
                   const SizedBox(height: 8),
                   MediaPickerBox(
-                    hasImage: form.hasImage,
-                    imageFile: form.imageFile,
-                    hint: form.imageHint,
+                    hasImage: viewState.hasImage,
+                    imageFile: viewState.imageFile,
+                    hint: viewState.imageHint,
                     onPick: form.pickImage,
                     onClear: form.clearImage,
                   ),
@@ -172,7 +202,7 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
                   const _SectionLabel('Video'),
                   const SizedBox(height: 8),
                   VideoPickerBox(
-                    videoFile: form.videoFile,
+                    videoFile: viewState.videoFile,
                     onPick: form.pickVideo,
                     onClear: form.clearVideo,
                   ),
@@ -231,7 +261,7 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
                   ],
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
-                    initialValue: form.category,
+                    initialValue: viewState.category,
                     onChanged: (value) {
                       if (value != null) form.setCategory(value);
                     },
@@ -261,9 +291,10 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
                   GestureDetector(
                     onTap: () => _openMapPicker(context, form),
                     child: _LocationPill(
-                      label: form.locationLabel,
+                      label: viewState.locationLabel,
                       detecting:
-                          form.locationState == LocationDetectState.detecting,
+                          viewState.locationState ==
+                          LocationDetectState.detecting,
                       onChanged: form.setLocationLabel,
                     ),
                   ),
@@ -276,7 +307,9 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
                 width: double.infinity,
                 height: 56,
                 child: FilledButton(
-                  onPressed: form.canSubmit ? () => _submit(context) : null,
+                  onPressed: viewState.canSubmit
+                      ? () => _submit(context)
+                      : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: _kBlue,
                     disabledBackgroundColor: const Color(0xFFB7C0D8),
@@ -288,7 +321,7 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  child: form.isSubmitting
+                  child: viewState.isSubmitting
                       ? const SizedBox(
                           width: 22,
                           height: 22,
@@ -346,15 +379,16 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
             if (!context.mounted) return;
             Navigator.of(context).push(
               MaterialPageRoute<void>(
-                builder: (_) => ProblemDetailScreen(
-                  post: _postFromReport(report),
-                ),
+                builder: (_) =>
+                    ProblemDetailScreen(post: _postFromReport(report)),
               ),
             );
           } catch (_) {
             if (!context.mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Unable to load the active report.')),
+              const SnackBar(
+                content: Text('Unable to load the active report.'),
+              ),
             );
           }
         }
@@ -410,7 +444,8 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
   CitizenProblemPost _postFromReport(Map<String, dynamic> report) {
     final latitude = report['latitude'];
     final longitude = report['longitude'];
-    final location = report['location_name']?.toString() ??
+    final location =
+        report['location_name']?.toString() ??
         (latitude != null && longitude != null
             ? '$latitude, $longitude'
             : 'Location unavailable');
@@ -431,7 +466,8 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
       upvoteCount: 0,
       audioDuration:
           '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}',
-      isVerified: priority == 'high' ||
+      isVerified:
+          priority == 'high' ||
           metadata is Map && metadata['severity'] == 'high',
       imageUrl: ApiService.resolveMediaUrl(report['image_url']?.toString()),
       audioUrl: ApiService.resolveMediaUrl(report['audio_url']?.toString()),
@@ -440,7 +476,7 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
       translatedText: report['translated_text']?.toString(),
       description: report['description']?.toString(),
       createdAt: createdAt,
-      authorName: report['author_name']?.toString() ?? 'Citizen',
+      authorName: reportAuthorName(report),
       locationName: location,
       commentCount: report['comment_count'] is num
           ? (report['comment_count'] as num).toInt()

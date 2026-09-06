@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/citizen_feed_provider.dart';
 import '../services/api_service.dart';
+import '../services/report_author.dart';
 import 'report_problem_screen.dart';
 import 'widgets/feed_filter_bar.dart';
 import 'widgets/citizen_problem_card.dart';
@@ -171,9 +172,7 @@ class _CitizenViewState extends State<CitizenView> {
       translatedText: report['translated_text']?.toString(),
       description: report['description']?.toString(),
       createdAt: createdAt,
-        authorName: report['author_name']?.toString() ??
-          report['user_name']?.toString() ??
-          'Citizen',
+        authorName: reportAuthorName(report),
       locationName: location,
       commentCount: report['comment_count'] is num
           ? (report['comment_count'] as num).toInt()

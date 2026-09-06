@@ -299,6 +299,7 @@ class SolverTaskCard extends StatelessWidget {
     audioUrl: task.audioUrl,
     videoUrl: task.videoUrl,
     description: task.description,
+    authorName: task.authorName,
     commentCount: task.commentCount,
   );
 }

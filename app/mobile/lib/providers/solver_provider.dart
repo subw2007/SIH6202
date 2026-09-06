@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'auth_provider.dart';
 import '../services/api_service.dart';
+import '../services/report_author.dart';
 
 enum TaskPriority { critical, high, medium, low }
 
@@ -26,6 +27,7 @@ class SolverTask {
     this.audioUrl,
     this.videoUrl,
     this.commentCount = 0,
+    this.authorName = 'Anonymous Citizen',
   });
 
   final String id;
@@ -43,6 +45,7 @@ class SolverTask {
   final String? audioUrl;
   final String? videoUrl;
   final int commentCount;
+  final String authorName;
 
   SolverTask copyWith({TaskStatus? status}) => SolverTask(
     id: id,
@@ -60,6 +63,7 @@ class SolverTask {
     audioUrl: audioUrl,
     videoUrl: videoUrl,
     commentCount: commentCount,
+    authorName: authorName,
   );
 
   factory SolverTask.fromJson(Map<String, dynamic> json) {
@@ -93,6 +97,7 @@ class SolverTask {
       audioUrl: ApiService.resolveMediaUrl(json['audio_url']?.toString()),
       videoUrl: ApiService.resolveMediaUrl(json['video_url']?.toString()),
       commentCount: _asInt(json['comment_count']),
+      authorName: reportAuthorName(json),
     );
   }
 

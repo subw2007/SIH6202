@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -77,12 +77,18 @@ class MediaPickerBox extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 ListTile(
-                  leading: const Icon(Icons.photo_camera_outlined, color: Color(0xFF4A62AD)),
+                  leading: const Icon(
+                    Icons.photo_camera_outlined,
+                    color: Color(0xFF4A62AD),
+                  ),
                   title: const Text('Take Photo'),
                   onTap: () => Navigator.pop(ctx, ImagePickSource.camera),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.photo_library_outlined, color: Color(0xFF4A62AD)),
+                  leading: const Icon(
+                    Icons.photo_library_outlined,
+                    color: Color(0xFF4A62AD),
+                  ),
                   title: const Text('Upload Image'),
                   onTap: () => Navigator.pop(ctx, ImagePickSource.gallery),
                 ),
@@ -116,7 +122,11 @@ class _Empty extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.photo_camera_outlined, size: 48, color: Color(0xFF4A62AD)),
+                const Icon(
+                  Icons.photo_camera_outlined,
+                  size: 48,
+                  color: Color(0xFF4A62AD),
+                ),
                 const SizedBox(height: 10),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -152,11 +162,11 @@ class _Preview extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           if (imageFile != null)
-            FutureBuilder<List<int>>(
-              future: imageFile!.readAsBytes(),
-              builder: (context, snapshot) => snapshot.hasData
-                  ? Image.memory(Uint8List.fromList(snapshot.data!), fit: BoxFit.cover)
-                  : const ColoredBox(color: Color(0xFFEEF1F8)),
+            Image.file(
+              File(imageFile!.path),
+              key: ValueKey(imageFile!.path),
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
             )
           else
             const ColoredBox(color: Color(0xFF5A5F68)),
@@ -185,7 +195,10 @@ class _DashBorderPainter extends CustomPainter {
       var dist = 0.0;
       while (dist < metric.length) {
         final next = dist + dash;
-        canvas.drawPath(metric.extractPath(dist, next.clamp(0, metric.length)), paint);
+        canvas.drawPath(
+          metric.extractPath(dist, next.clamp(0, metric.length)),
+          paint,
+        );
         dist += dash + gap;
       }
     }
@@ -194,4 +207,3 @@ class _DashBorderPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-
