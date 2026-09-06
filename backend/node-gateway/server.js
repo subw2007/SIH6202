@@ -21,6 +21,23 @@ const jwtSecret = process.env.JWT_SECRET;
 if (!jwtSecret) throw new Error('JWT_SECRET environment variable is required');
 if (!pythonMlServiceUrl) throw new Error('PYTHON_ML_SERVICE_URL environment variable is required');
 
+const normalizeMediaPath = (value) => {
+  if (value == null) return null;
+  const mediaPath = String(value).trim();
+  if (!mediaPath) return null;
+
+  let pathname = mediaPath;
+  if (mediaPath.startsWith('http://') || mediaPath.startsWith('https://')) {
+    try {
+      pathname = new URL(mediaPath).pathname;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  return pathname.startsWith('/uploads/') ? pathname : null;
+};
+
 fs.mkdirSync(dataDirectory, { recursive: true });
 fs.mkdirSync(uploadsDirectory, { recursive: true });
 const database = new sqlite3.Database(databasePath);
@@ -99,6 +116,7 @@ const databaseReady = new Promise((resolve, reject) => {
         for (const [name, type] of missingColumns) {
           await runDatabase(`ALTER TABLE reports ADD COLUMN ${name} ${type}`);
         }
+        await normalizeExistingMediaPaths();
         const tableColumns = [
           ['comments', [['user_id', 'TEXT'], ['author_name', 'TEXT']]],
           ['team_members', [['user_id', 'TEXT'], ['role', 'TEXT']]],
@@ -193,6 +211,29 @@ const runDatabase = (sql, parameters = []) => new Promise((resolve, reject) => {
     else resolve(this);
   });
 });
+
+async function normalizeExistingMediaPaths() {
+  const tables = [['reports', 'id']];
+  const columns = ['image_url', 'video_url', 'audio_url'];
+
+  for (const [table, idColumn] of tables) {
+    const rows = await new Promise((resolve, reject) => {
+      database.all(
+        `SELECT ${idColumn}, ${columns.join(', ')} FROM ${table}`,
+        (error, results) => (error ? reject(error) : resolve(results)),
+      );
+    });
+    for (const row of rows) {
+      const normalized = columns.map((column) => normalizeMediaPath(row[column]));
+      if (columns.some((column, index) => row[column] !== normalized[index])) {
+        await runDatabase(
+          `UPDATE ${table} SET ${columns.map((column) => `${column} = ?`).join(', ')} WHERE ${idColumn} = ?`,
+          [...normalized, row[idColumn]],
+        );
+      }
+    }
+  }
+}
 
 app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '10mb' }));
@@ -536,9 +577,9 @@ app.post('/api/reports', requireAuth, async (request, response) => {
       latitude: report.latitude ?? null,
       longitude: report.longitude ?? null,
       location_name: report.location_name || report.location || null,
-      image_url: report.image_url || null,
-      video_url: report.video_url || report.videoUrl || report.video || null,
-      audio_url: report.audio_url || null,
+      image_url: normalizeMediaPath(report.image_url),
+      video_url: normalizeMediaPath(report.video_url || report.videoUrl || report.video),
+      audio_url: normalizeMediaPath(report.audio_url),
       translated_text: analysisSignals.combined_text ||
         analysisSignals.translated_description || null,
       audio_transcript: analysisSignals.audio_transcript || null,

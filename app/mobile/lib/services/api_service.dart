@@ -66,11 +66,12 @@ class ApiService {
 
   static String resolveMediaUrl(String? url) {
     if (url == null || url.isEmpty) return '';
-    if (url.startsWith('http')) return url;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
     final gatewayUrl = AppConfig.baseUrl.endsWith('/api')
       ? AppConfig.baseUrl.substring(0, AppConfig.baseUrl.length - 4)
       : AppConfig.baseUrl;
-    return '$gatewayUrl$url';
+    final relativePath = url.startsWith('/') ? url : '/$url';
+    return '$gatewayUrl$relativePath';
   }
 
   Future<String> uploadFile(XFile file) async {
